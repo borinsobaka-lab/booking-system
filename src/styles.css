@@ -1687,6 +1687,7 @@ textarea {
 .cal-grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-auto-rows: 38px;
   gap: 5px;
 }
 .cal-cell {

@@ -94,7 +94,8 @@ export function BookingWizard({
       </div>
 
       <div className="wiz-content">
-        <h2 className="wiz-title">{t(STEP_KEY[step])}</h2>
+        {/* У шага «дата и время» заголовок динамический — задаётся внутри шага. */}
+        {step !== 'datetime' && <h2 className="wiz-title">{t(STEP_KEY[step])}</h2>}
 
         <div className="wiz-body">
           {step === 'specialist' && <SpecialistStep sel={sel} onPick={(id) => choose({ specialistId: id })} />}
@@ -301,6 +302,7 @@ function DateTimeStep({ sel, onPick }: { sel: Selection; onPick: (date: string, 
 
   return (
     <div className="datetime">
+      <h2 className="wiz-title">{date ? t('step.time') : t('step.date')}</h2>
       <div className="calendar">
         <div className="cal-head">
           <button className="iconbtn" onClick={() => shift(-1)}>
