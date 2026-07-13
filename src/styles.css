@@ -1102,14 +1102,49 @@ textarea {
 @keyframes fade {
   from {
     opacity: 0;
-    transform: translateY(4px);
   }
+}
+/* Прилипающая шапка: компактный бренд + прогресс + «Назад» */
+.wiz-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.wiz-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  border: none;
+  background: none;
+  text-align: left;
+  padding: 10px 16px 6px;
+}
+.wiz-brand-info {
+  min-width: 0;
+}
+.wiz-brand-name {
+  font-weight: 700;
+  font-size: 16px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wiz-brand-address {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .wizard-top {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 16px;
+  padding: 2px 16px 12px;
 }
 .wiz-back {
   border: none;
@@ -1126,9 +1161,9 @@ textarea {
 }
 .wiz-progress {
   flex: 1;
-  height: 6px;
+  height: 10px;
   background: #eceef2;
-  border-radius: 4px;
+  border-radius: 6px;
   overflow: hidden;
 }
 .wiz-progress-bar {
@@ -1139,6 +1174,9 @@ textarea {
 .wiz-step-count {
   font-size: 13px;
   color: var(--muted);
+}
+.wiz-content {
+  padding: 18px 18px 34px;
 }
 .wiz-title {
   font-size: 22px;

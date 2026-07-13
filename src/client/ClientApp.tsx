@@ -77,6 +77,16 @@ export function ClientApp(_props: { path: string }) {
     setScreen({ kind: 'done', booking })
   }
 
+  // В процессе записи — своя компактная прилипающая шапка (внутри BookingWizard).
+  if (screen.kind === 'wizard') {
+    return (
+      <div className="client">
+        <LangSwitcher />
+        <BookingWizard flow={screen.flow} onExit={() => setScreen({ kind: 'landing' })} onBooked={book} />
+      </div>
+    )
+  }
+
   return (
     <div className="client">
       <LangSwitcher />
@@ -92,9 +102,6 @@ export function ClientApp(_props: { path: string }) {
         )}
         {!loading && screen.kind === 'landing' && (
           <Landing configured={configured} onStart={(flow) => setScreen({ kind: 'wizard', flow })} />
-        )}
-        {screen.kind === 'wizard' && (
-          <BookingWizard flow={screen.flow} onExit={() => setScreen({ kind: 'landing' })} onBooked={book} />
         )}
         {screen.kind === 'done' && (
           <DoneScreen booking={screen.booking} onAgain={() => setScreen({ kind: 'landing' })} />

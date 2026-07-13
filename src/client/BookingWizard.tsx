@@ -76,28 +76,52 @@ export function BookingWizard({
 
   return (
     <div className="wizard">
-      <div className="wizard-top">
-        <button className="wiz-back" onClick={back}>
-          ‹ {t('back')}
-        </button>
-        <div className="wiz-progress">
-          <div className="wiz-progress-bar" style={{ width: `${progress}%` }} />
+      {/* Компактная шапка + прогресс + «Назад» — закреплены при скролле */}
+      <div className="wiz-sticky">
+        <CompactBrand onHome={onExit} />
+        <div className="wizard-top">
+          <button className="wiz-back" onClick={back}>
+            ‹ {t('back')}
+          </button>
+          <div className="wiz-progress">
+            <div className="wiz-progress-bar" style={{ width: `${progress}%` }} />
+          </div>
+          <span className="wiz-step-count">
+            {index + 1}/{steps.length}
+          </span>
         </div>
-        <span className="wiz-step-count">
-          {index + 1}/{steps.length}
-        </span>
       </div>
 
-      <h2 className="wiz-title">{t(STEP_KEY[step])}</h2>
-      <SelectionSummary sel={sel} />
+      <div className="wiz-content">
+        <h2 className="wiz-title">{t(STEP_KEY[step])}</h2>
+        <SelectionSummary sel={sel} />
 
-      <div className="wiz-body">
-        {step === 'specialist' && <SpecialistStep sel={sel} onPick={(id) => choose({ specialistId: id })} />}
-        {step === 'service' && <ServiceStep sel={sel} onPick={(id) => choose({ serviceId: id })} />}
-        {step === 'datetime' && <DateTimeStep sel={sel} onPick={(date, start) => choose({ date, start })} />}
-        {step === 'confirm' && <ConfirmStep sel={sel} onBook={onBooked} />}
+        <div className="wiz-body">
+          {step === 'specialist' && <SpecialistStep sel={sel} onPick={(id) => choose({ specialistId: id })} />}
+          {step === 'service' && <ServiceStep sel={sel} onPick={(id) => choose({ serviceId: id })} />}
+          {step === 'datetime' && <DateTimeStep sel={sel} onPick={(date, start) => choose({ date, start })} />}
+          {step === 'confirm' && <ConfirmStep sel={sel} onBook={onBooked} />}
+        </div>
       </div>
     </div>
+  )
+}
+
+/** Компактная шапка бренда для процесса записи: логотип слева, название и адрес
+ *  справа. Клик — на главную. */
+function CompactBrand({ onHome }: { onHome: () => void }) {
+  const db = useDB()
+  const { lang } = useI18n()
+  const name = pick(db.brand.name, lang)
+  const address = pick(db.brand.address, lang)
+  return (
+    <button className="wiz-brand" onClick={onHome} title={name}>
+      <Avatar src={db.brand.avatar} name={name} size={40} />
+      <div className="wiz-brand-info">
+        <div className="wiz-brand-name">{name}</div>
+        {address && <div className="wiz-brand-address">📍 {address}</div>}
+      </div>
+    </button>
   )
 }
 
