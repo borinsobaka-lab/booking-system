@@ -1,0 +1,11 @@
+{
+  "name": "booking-api-worker",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "mock": "node test/mock-server.mjs",
+    "deploy": "wrangler deploy"
+  }
+}

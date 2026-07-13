@@ -1,5 +1,8 @@
+import { useEffect, useState } from 'react'
 import { useAuth, roleLabel } from '../auth'
 import { navigate } from '../router'
+import { isRemote } from '../config'
+import { enterAdmin, stopPersisting } from '../session'
 import { SetupScreen } from './SetupScreen'
 import { LoginScreen } from './LoginScreen'
 import { BookingsPage } from './BookingsPage'
@@ -31,10 +34,36 @@ function tabForPath(path: string): Tab {
 }
 
 export function AdminApp({ path }: { path: string }) {
-  const { user, ownerExists, logout, canManageUsers } = useAuth()
+  const { user, ownerExists, ready, logout, canManageUsers } = useAuth()
 
+  // remote-режим: подгрузить полные данные и включить сохранение на сервер,
+  // когда сотрудник авторизован (в т.ч. при возврате в админку с витрины).
+  const [dataReady, setDataReady] = useState(!isRemote())
+  useEffect(() => {
+    if (!isRemote()) return
+    if (!user) {
+      setDataReady(true)
+      return
+    }
+    setDataReady(false)
+    let alive = true
+    enterAdmin()
+      .catch((e) => console.error('Не удалось загрузить данные:', e))
+      .finally(() => alive && setDataReady(true))
+    return () => {
+      alive = false
+    }
+  }, [user])
+
+  const onLogout = () => {
+    stopPersisting()
+    logout()
+  }
+
+  if (!ready) return <AdminLoading />
   if (!ownerExists) return <SetupScreen />
   if (!user) return <LoginScreen />
+  if (!dataReady) return <AdminLoading />
 
   const tab = tabForPath(path)
   const visibleTabs = TABS.filter((t) => !t.ownerOnly || canManageUsers)
@@ -69,7 +98,7 @@ export function AdminApp({ path }: { path: string }) {
           <button className="linkbtn" onClick={() => navigate('/')}>
             Витрина записи ↗
           </button>
-          <button className="linkbtn danger" onClick={logout}>
+          <button className="linkbtn danger" onClick={onLogout}>
             Выйти
           </button>
         </div>
@@ -107,6 +136,17 @@ function NoAccess() {
       <div className="empty">
         <div className="empty-emoji">🔒</div>
         <p>Этот раздел доступен только суперадминистратору.</p>
+      </div>
+    </div>
+  )
+}
+
+function AdminLoading() {
+  return (
+    <div className="auth-screen">
+      <div className="auth-card" style={{ textAlign: 'center' }}>
+        <div className="spinner" />
+        <p className="muted">Загрузка…</p>
       </div>
     </div>
   )

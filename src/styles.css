@@ -428,6 +428,20 @@ textarea {
   font-size: 46px;
   margin-bottom: 12px;
 }
+.spinner {
+  width: 30px;
+  height: 30px;
+  border: 3px solid var(--accent-soft);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  margin: 0 auto 12px;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 
 /* ===== Сетки карточек ===== */
 .cards-grid {

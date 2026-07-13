@@ -1,7 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useDB, addBooking, uid } from '../db'
 import { Avatar, money, duration } from '../ui'
 import { navigate } from '../router'
+import { isRemote } from '../config'
+import { enterClient } from '../session'
+import * as remote from '../remote'
 import { addMinutes, formatFull } from '../time'
 import { BookingWizard, type Flow } from './BookingWizard'
 import type { Booking, BookingForm } from '../types'
@@ -14,16 +17,46 @@ type Screen =
 export function ClientApp(_props: { path: string }) {
   const db = useDB()
   const [screen, setScreen] = useState<Screen>({ kind: 'landing' })
+  const [loading, setLoading] = useState(isRemote())
+
+  // remote-режим: грузим публичные данные витрины (без персональных данных).
+  useEffect(() => {
+    if (!isRemote()) return
+    let alive = true
+    enterClient()
+      .catch((e) => console.error('Не удалось загрузить данные:', e))
+      .finally(() => alive && setLoading(false))
+    return () => {
+      alive = false
+    }
+  }, [])
 
   const configured = db.services.length > 0 && db.specialists.length > 0
 
-  const book = (v: {
-    serviceId: string
-    specialistId: string
-    date: string
-    start: string
-  } & BookingForm) => {
+  const book = async (
+    v: { serviceId: string; specialistId: string; date: string; start: string } & BookingForm,
+  ) => {
     const svc = db.services.find((s) => s.id === v.serviceId)!
+    if (isRemote()) {
+      // Бронь создаёт сервер (валидирует занятость, пишет в приватный репозиторий).
+      try {
+        const booking = await remote.submitBooking({
+          specialistId: v.specialistId,
+          serviceId: v.serviceId,
+          date: v.date,
+          start: v.start,
+          clientName: v.clientName,
+          clientPhone: v.clientPhone,
+          clientEmail: v.clientEmail || undefined,
+          comment: v.comment || undefined,
+          consent: v.consent,
+        })
+        setScreen({ kind: 'done', booking })
+      } catch (e) {
+        alert(e instanceof Error ? e.message : 'Не удалось создать запись. Попробуйте другое время.')
+      }
+      return
+    }
     const booking: Booking = {
       id: uid(),
       specialistId: v.specialistId,
@@ -47,7 +80,15 @@ export function ClientApp(_props: { path: string }) {
     <div className="client">
       <Banner />
       <div className="client-content">
-        {screen.kind === 'landing' && (
+        {loading && (
+          <div className="landing">
+            <div className="empty">
+              <div className="spinner" />
+              <p className="muted">Загрузка…</p>
+            </div>
+          </div>
+        )}
+        {!loading && screen.kind === 'landing' && (
           <Landing
             configured={configured}
             onStart={(flow) => setScreen({ kind: 'wizard', flow })}

@@ -53,16 +53,35 @@ function load(): DB {
   }
 }
 
-function persist() {
+function localPersist(db: DB) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(db))
   } catch {
     // Хранилище переполнено/недоступно — тихо игнорируем в демо-режиме.
   }
 }
 
+// Стратегия сохранения. По умолчанию — localStorage (локальный режим).
+// В remote-режиме заменяется: у витрины — no-op, у админки — отправка на Worker.
+let persister: ((db: DB) => void) | null = localPersist
+
+/** Задать стратегию сохранения (remote-режим). null ⇒ ничего не сохраняем. */
+export function setPersister(fn: ((db: DB) => void) | null): void {
+  persister = fn
+}
+
+function persist() {
+  persister?.(state)
+}
+
 function emit() {
   for (const l of listeners) l()
+}
+
+/** Заменить всё состояние извне (загрузка с сервера). Не пишет обратно. */
+export function hydrate(next: DB): void {
+  state = { ...emptyDB(), ...next, brand: { ...emptyBrand(), ...next.brand } }
+  emit()
 }
 
 /** Применить изменение к состоянию (иммутабельно) и сохранить. */

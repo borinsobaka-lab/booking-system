@@ -25,6 +25,11 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+        env:
+          # Адрес Cloudflare Worker API. Задаётся как Repository variable
+          # (Settings → Secrets and variables → Actions → Variables).
+          # Пусто ⇒ приложение собирается в локальном режиме (localStorage).
+          VITE_API_BASE: ${{ vars.VITE_API_BASE }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

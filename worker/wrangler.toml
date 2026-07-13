@@ -1,0 +1,16 @@
+name = "booking-api"
+main = "worker.js"
+compatibility_date = "2024-11-01"
+
+# Некритичные переменные — прямо здесь. Секреты задаются командой
+# `wrangler secret put` (см. SETUP.md) и НЕ хранятся в репозитории.
+[vars]
+DATA_REPO = "borinsobaka-lab/booking-system-data"
+DATA_BRANCH = "main"
+DATA_PATH = "data.json"
+# Origin витрины на GitHub Pages (для CORS). Замените, если домен другой.
+CORS_ORIGIN = "https://borinsobaka-lab.github.io"
+
+# Секреты (задать через wrangler secret put, не сюда):
+#   DATA_TOKEN     — GitHub-токен с доступом contents:read/write к DATA_REPO
+#   SESSION_SECRET — длинная случайная строка для подписи сессий
