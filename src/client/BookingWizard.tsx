@@ -11,7 +11,7 @@ import {
   startsFor,
   type Selection,
 } from './booking'
-import type { Service, Specialist } from '../types'
+import type { BookingForm, Service, Specialist } from '../types'
 
 export type Flow = 'master' | 'date' | 'service'
 export type Step = 'specialist' | 'service' | 'date' | 'time' | 'confirm'
@@ -37,7 +37,7 @@ export function BookingWizard({
 }: {
   flow: Flow
   onExit: () => void
-  onBooked: (sel: Required<Pick<Selection, 'serviceId' | 'specialistId' | 'date' | 'start'>> & { clientName?: string }) => void
+  onBooked: (sel: Required<Pick<Selection, 'serviceId' | 'specialistId' | 'date' | 'start'>> & BookingForm) => void
 }) {
   const steps = FLOWS[flow]
   const [index, setIndex] = useState(0)
@@ -259,68 +259,131 @@ function TimeStep({ sel, onPick }: { sel: Selection; onPick: (t: string) => void
   )
 }
 
-// --- Шаг: подтверждение ---
+// --- Шаг: подтверждение и форма брони ---
 function ConfirmStep({
   sel,
   onBook,
 }: {
   sel: Selection
-  onBook: (v: Required<Pick<Selection, 'serviceId' | 'specialistId' | 'date' | 'start'>> & { clientName?: string }) => void
+  onBook: (v: Required<Pick<Selection, 'serviceId' | 'specialistId' | 'date' | 'start'>> & BookingForm) => void
 }) {
   const db = useDB()
-  const [clientName, setClientName] = useState('')
+  const [form, setForm] = useState<BookingForm>({
+    clientName: '',
+    clientPhone: '',
+    clientEmail: '',
+    comment: '',
+    consent: false,
+  })
+  const set = <K extends keyof BookingForm>(k: K, v: BookingForm[K]) => setForm((f) => ({ ...f, [k]: v }))
+
   const svc = db.services.find((s) => s.id === sel.serviceId)
   const sp = db.specialists.find((s) => s.id === sel.specialistId)
-  const ready = sel.serviceId && sel.specialistId && sel.date && sel.start
   const end = svc && sel.start ? addMinutes(sel.start, svc.durationMin) : ''
+
+  const emailValid = form.clientEmail.trim() === '' || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.clientEmail.trim())
+  const canBook =
+    !!(sel.serviceId && sel.specialistId && sel.date && sel.start) &&
+    form.clientName.trim().length > 0 &&
+    form.clientPhone.trim().length >= 5 &&
+    emailValid &&
+    form.consent
 
   return (
     <div className="confirm">
-      <div className="confirm-card">
-        <div className="confirm-row">
-          <span>Услуга</span>
-          <b>{svc?.name}</b>
-        </div>
-        <div className="confirm-row">
-          <span>Мастер</span>
-          <b>
+      {/* Сводка: мастер под иконкой, дата/время, услуга и стоимость */}
+      <div className="booking-summary">
+        <div className="booking-master">
+          <Avatar src={sp?.avatar ?? null} name={`${sp?.firstName ?? ''} ${sp?.lastName ?? ''}`} size={72} />
+          <div className="booking-master-name">
             {sp?.firstName} {sp?.lastName}
-          </b>
+          </div>
+          <div className="booking-master-role">{sp?.role}</div>
         </div>
-        <div className="confirm-row">
-          <span>Когда</span>
-          <b>
-            {sel.date && formatFull(sel.date)}, {sel.start}–{end}
-          </b>
-        </div>
-        <div className="confirm-row">
-          <span>Стоимость</span>
-          <b>{svc && money(svc.price)}</b>
+        <div className="confirm-card">
+          <div className="confirm-row">
+            <span>Дата и время</span>
+            <b>
+              {sel.date && formatFull(sel.date)}, {sel.start}–{end}
+            </b>
+          </div>
+          <div className="confirm-row">
+            <span>Услуга</span>
+            <b>{svc?.name}</b>
+          </div>
+          <div className="confirm-row">
+            <span>Стоимость услуги</span>
+            <b>{svc && money(svc.price)}</b>
+          </div>
+          <div className="confirm-row total">
+            <span>Итого к оплате</span>
+            <b>{svc && money(svc.price)}</b>
+          </div>
         </div>
       </div>
+
+      {/* Персональные данные */}
+      <h3 className="form-section-title">Ваши данные</h3>
       <label className="field">
-        <span className="field-label">Ваше имя</span>
-        <input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Как к вам обращаться" />
+        <span className="field-label">Имя *</span>
+        <input value={form.clientName} onChange={(e) => set('clientName', e.target.value)} placeholder="Как к вам обращаться" />
       </label>
-      <p className="muted small">
-        Запись подтверждается автоматически. Позже здесь появятся уведомления на почту и подтверждение
-        по телефону.
-      </p>
+      <label className="field">
+        <span className="field-label">Номер телефона *</span>
+        <input
+          type="tel"
+          value={form.clientPhone}
+          onChange={(e) => set('clientPhone', e.target.value)}
+          placeholder="+995 555 12 34 56"
+        />
+      </label>
+      <label className="field">
+        <span className="field-label">Email</span>
+        <input
+          type="email"
+          value={form.clientEmail}
+          onChange={(e) => set('clientEmail', e.target.value)}
+          placeholder="you@example.com"
+        />
+        {!emailValid && <span className="field-error">Проверьте адрес почты</span>}
+      </label>
+      <label className="field">
+        <span className="field-label">Комментарий</span>
+        <textarea
+          value={form.comment}
+          onChange={(e) => set('comment', e.target.value)}
+          rows={3}
+          placeholder="Пожелания к записи (необязательно)"
+        />
+      </label>
+
+      <label className="consent">
+        <input type="checkbox" checked={form.consent} onChange={(e) => set('consent', e.target.checked)} />
+        <span>
+          Я согласен(а) на обработку моих персональных данных, в том числе специальных категорий, для
+          оформления записи.
+        </span>
+      </label>
+
       <button
         className="btn btn-primary btn-block btn-lg"
-        disabled={!ready}
+        disabled={!canBook}
         onClick={() =>
-          ready &&
+          canBook &&
           onBook({
             serviceId: sel.serviceId!,
             specialistId: sel.specialistId!,
             date: sel.date!,
             start: sel.start!,
-            clientName: clientName.trim() || undefined,
+            clientName: form.clientName.trim(),
+            clientPhone: form.clientPhone.trim(),
+            clientEmail: form.clientEmail.trim(),
+            comment: form.comment.trim(),
+            consent: form.consent,
           })
         }
       >
-        Записаться
+        Забронировать
       </button>
     </div>
   )

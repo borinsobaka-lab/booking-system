@@ -160,6 +160,28 @@ function BookingDetail({ booking, onClose }: { booking: Booking; onClose: () => 
           <dd>{sp ? `${sp.firstName} ${sp.lastName}` : '—'}</dd>
           <dt>Клиент</dt>
           <dd>{booking.clientName || 'без имени'}</dd>
+          {booking.clientPhone && (
+            <>
+              <dt>Телефон</dt>
+              <dd>
+                <a href={`tel:${booking.clientPhone}`}>{booking.clientPhone}</a>
+              </dd>
+            </>
+          )}
+          {booking.clientEmail && (
+            <>
+              <dt>Email</dt>
+              <dd>
+                <a href={`mailto:${booking.clientEmail}`}>{booking.clientEmail}</a>
+              </dd>
+            </>
+          )}
+          {booking.comment && (
+            <>
+              <dt>Комментарий</dt>
+              <dd>{booking.comment}</dd>
+            </>
+          )}
           <dt>Статус</dt>
           <dd>
             <span className="badge badge-ok">подтверждена</span>

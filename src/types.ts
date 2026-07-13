@@ -86,7 +86,21 @@ export interface Booking {
   /** Пока запись подтверждается автоматически (симуляция). */
   status: 'confirmed'
   clientName?: string
+  clientPhone?: string
+  clientEmail?: string
+  comment?: string
+  /** Согласие клиента на обработку персональных данных. */
+  consent?: boolean
   createdAt: number
+}
+
+/** Данные, которые клиент вводит в форме брони. */
+export interface BookingForm {
+  clientName: string
+  clientPhone: string
+  clientEmail: string
+  comment: string
+  consent: boolean
 }
 
 export interface DB {

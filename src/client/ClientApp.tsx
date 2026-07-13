@@ -4,7 +4,7 @@ import { Avatar, money, duration } from '../ui'
 import { navigate } from '../router'
 import { addMinutes, formatFull } from '../time'
 import { BookingWizard, type Flow } from './BookingWizard'
-import type { Booking } from '../types'
+import type { Booking, BookingForm } from '../types'
 
 type Screen =
   | { kind: 'landing' }
@@ -22,8 +22,7 @@ export function ClientApp(_props: { path: string }) {
     specialistId: string
     date: string
     start: string
-    clientName?: string
-  }) => {
+  } & BookingForm) => {
     const svc = db.services.find((s) => s.id === v.serviceId)!
     const booking: Booking = {
       id: uid(),
@@ -34,6 +33,10 @@ export function ClientApp(_props: { path: string }) {
       end: addMinutes(v.start, svc.durationMin),
       status: 'confirmed',
       clientName: v.clientName,
+      clientPhone: v.clientPhone || undefined,
+      clientEmail: v.clientEmail || undefined,
+      comment: v.comment || undefined,
+      consent: v.consent,
       createdAt: Date.now(),
     }
     addBooking(booking)

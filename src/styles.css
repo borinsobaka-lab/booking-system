@@ -1302,6 +1302,61 @@ textarea {
 .confirm-row span {
   color: var(--muted);
 }
+.confirm-row.total {
+  border-top: 1px solid #e4e6ea;
+  border-bottom: none;
+  margin-top: 2px;
+  padding-top: 11px;
+  font-size: 16px;
+}
+.confirm-row.total b {
+  color: var(--accent-dark);
+}
+
+/* Форма брони */
+.booking-summary {
+  margin-bottom: 20px;
+}
+.booking-master {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.booking-master-name {
+  font-weight: 700;
+  font-size: 17px;
+}
+.booking-master-role {
+  color: var(--muted);
+  font-size: 13px;
+}
+.form-section-title {
+  font-size: 16px;
+  margin: 6px 0 12px;
+}
+.field-error {
+  display: block;
+  color: var(--danger);
+  font-size: 12px;
+  margin-top: 4px;
+}
+.consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.4;
+  margin: 4px 0 18px;
+  cursor: pointer;
+}
+.consent input {
+  width: auto;
+  margin-top: 2px;
+  flex: none;
+}
 .done {
   text-align: center;
   padding: 20px 0;
