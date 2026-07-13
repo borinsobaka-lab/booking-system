@@ -3,7 +3,10 @@ import { useDB, setDaySchedule, getDaySchedule } from '../db'
 import { Avatar } from '../ui'
 import { fromMinutes, toMinutes, startOfWeek, weekDays, todayKey, addDays, weekdayShort, formatDayMonth } from '../time'
 import { DAY_END_MIN, DAY_START_MIN, PX_PER_MIN, TIMELINE_HEIGHT, hourMarks, minToY, yToMin } from './timeline'
-import type { DaySchedule, TimeRange } from '../types'
+import { pick, specialistName } from '../localized'
+import type { DaySchedule, Lang, TimeRange } from '../types'
+
+const A: Lang = 'ru' // отображение контента в админке
 
 type Mode = 'work' | 'break'
 
@@ -130,10 +133,8 @@ export function SchedulePage() {
               className={`spec-pill${s.id === specId ? ' active' : ''}`}
               onClick={() => setSpecId(s.id)}
             >
-              <Avatar src={s.avatar} name={`${s.firstName} ${s.lastName}`} size={26} />
-              <span>
-                {s.firstName} {s.lastName}
-              </span>
+              <Avatar src={s.avatar} name={specialistName(s, A)} size={26} />
+              <span>{specialistName(s, A)}</span>
             </button>
           ))}
         </div>
@@ -237,7 +238,7 @@ export function SchedulePage() {
                       title="Запись клиента"
                     >
                       <span className="tl-block-label">
-                        {bk.start} · {db.services.find((x) => x.id === bk.serviceId)?.name ?? 'услуга'}
+                        {bk.start} · {(() => { const svc = db.services.find((x) => x.id === bk.serviceId); return svc ? pick(svc.name, A) : 'услуга' })()}
                       </span>
                     </div>
                   ))}

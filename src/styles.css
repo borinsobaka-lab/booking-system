@@ -910,6 +910,53 @@ textarea {
   color: #fff;
 }
 
+/* ===== Переключатель языка (клиент) ===== */
+.lang-switcher {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.lang-btn {
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  border-radius: 9px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.lang-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+/* ===== Вкладки языков (заполнение контента в админке) ===== */
+.lang-tabs {
+  display: inline-flex;
+  gap: 4px;
+  background: var(--accent-soft);
+  border-radius: 10px;
+  padding: 3px;
+  margin-bottom: 14px;
+}
+.lang-tab {
+  border: none;
+  background: none;
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.lang-tab.active {
+  background: var(--surface);
+  color: var(--text);
+}
+
 /* ===== Клиентская витрина ===== */
 .client {
   max-width: 560px;

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useDB, deleteUser } from '../db'
 import { useAuth, roleLabel } from '../auth'
 import { Avatar, Field, Modal } from '../ui'
+import { pick, specialistName } from '../localized'
 import type { Role, User } from '../types'
 
 export function UsersPage() {
@@ -37,7 +38,7 @@ export function UsersPage() {
                 </div>
                 <div className="user-row-sub">
                   @{u.username} · {roleLabel(u.role)}
-                  {spec && ` · профиль: ${spec.firstName} ${spec.lastName}`}
+                  {spec && ` · профиль: ${specialistName(spec, 'ru')}`}
                 </div>
               </div>
               <div className="user-row-actions">
@@ -173,7 +174,7 @@ function UserCreator({ onClose }: { onClose: () => void }) {
               <option value="">— не привязывать —</option>
               {db.specialists.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.firstName} {s.lastName} · {s.role}
+                  {specialistName(s, 'ru')} · {pick(s.role, 'ru')}
                 </option>
               ))}
             </select>

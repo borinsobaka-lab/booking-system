@@ -1,7 +1,10 @@
 import { useState } from 'react'
 import { useDB, saveSpecialist, deleteSpecialist, uid } from '../db'
-import { Avatar, Field, ImagePicker, Modal } from '../ui'
-import type { Specialist } from '../types'
+import { Avatar, Field, ImagePicker, Modal, LangTabs, setLoc } from '../ui'
+import { pick, specialistName, emptyLoc } from '../localized'
+import type { Lang, Specialist } from '../types'
+
+const A: Lang = 'ru' // отображение в админке
 
 export function SpecialistsPage() {
   const db = useDB()
@@ -9,9 +12,9 @@ export function SpecialistsPage() {
 
   const blank = (): Specialist => ({
     id: uid(),
-    firstName: '',
-    lastName: '',
-    role: 'Массажист',
+    firstName: emptyLoc(),
+    lastName: emptyLoc(),
+    role: { en: 'Massage therapist', ka: 'მასაჟისტი', ru: 'Массажист' },
     avatar: null,
     serviceIds: [],
     createdAt: Date.now(),
@@ -37,16 +40,14 @@ export function SpecialistsPage() {
             const services = db.services.filter((s) => sp.serviceIds.includes(s.id))
             return (
               <div className="spec-card" key={sp.id}>
-                <Avatar src={sp.avatar} name={`${sp.firstName} ${sp.lastName}`} size={64} />
-                <div className="spec-card-name">
-                  {sp.firstName} {sp.lastName}
-                </div>
-                <div className="spec-card-role">{sp.role}</div>
+                <Avatar src={sp.avatar} name={specialistName(sp, A)} size={64} />
+                <div className="spec-card-name">{specialistName(sp, A)}</div>
+                <div className="spec-card-role">{pick(sp.role, A)}</div>
                 <div className="spec-card-services">
                   {services.length ? (
                     services.map((s) => (
                       <span className="chip" key={s.id}>
-                        {s.name}
+                        {pick(s.name, A)}
                       </span>
                     ))
                   ) : (
@@ -59,9 +60,7 @@ export function SpecialistsPage() {
                   </button>
                   <button
                     className="linkbtn danger"
-                    onClick={() =>
-                      confirm(`Удалить специалиста «${sp.firstName} ${sp.lastName}»?`) && deleteSpecialist(sp.id)
-                    }
+                    onClick={() => confirm(`Удалить специалиста «${specialistName(sp, A)}»?`) && deleteSpecialist(sp.id)}
                   >
                     Удалить
                   </button>
@@ -80,6 +79,7 @@ export function SpecialistsPage() {
 function SpecialistEditor({ specialist, onClose }: { specialist: Specialist; onClose: () => void }) {
   const db = useDB()
   const [sp, setSp] = useState<Specialist>(specialist)
+  const [lang, setLang] = useState<Lang>('en')
   const set = <K extends keyof Specialist>(k: K, v: Specialist[K]) => setSp((p) => ({ ...p, [k]: v }))
 
   const toggleService = (id: string) =>
@@ -88,28 +88,36 @@ function SpecialistEditor({ specialist, onClose }: { specialist: Specialist; onC
       serviceIds: p.serviceIds.includes(id) ? p.serviceIds.filter((x) => x !== id) : [...p.serviceIds, id],
     }))
 
+  const nameFilled = (l: Specialist['firstName']) => l.en || l.ka || l.ru
   const save = () => {
-    if (!sp.firstName.trim() && !sp.lastName.trim()) return alert('Укажите имя специалиста')
-    saveSpecialist({ ...sp, firstName: sp.firstName.trim(), lastName: sp.lastName.trim() })
+    if (!nameFilled(sp.firstName) && !nameFilled(sp.lastName)) return alert('Укажите имя специалиста')
+    saveSpecialist(sp)
     onClose()
   }
 
+  const existing = nameFilled(specialist.firstName) || nameFilled(specialist.lastName)
   return (
-    <Modal title={specialist.firstName || specialist.lastName ? 'Специалист' : 'Новый специалист'} onClose={onClose}>
+    <Modal title={existing ? 'Специалист' : 'Новый специалист'} onClose={onClose}>
       <div className="form">
         <div className="form-imgrow">
           <ImagePicker value={sp.avatar} onChange={(v) => set('avatar', v)} shape="circle" label="Аватарка" />
         </div>
+        <p className="muted small">Заполните текст на каждом языке — переключайте вкладки.</p>
+        <LangTabs value={lang} onChange={setLang} />
         <div className="form-row">
           <Field label="Имя">
-            <input value={sp.firstName} onChange={(e) => set('firstName', e.target.value)} />
+            <input value={sp.firstName[lang]} onChange={(e) => set('firstName', setLoc(sp.firstName, lang, e.target.value))} />
           </Field>
           <Field label="Фамилия">
-            <input value={sp.lastName} onChange={(e) => set('lastName', e.target.value)} />
+            <input value={sp.lastName[lang]} onChange={(e) => set('lastName', setLoc(sp.lastName, lang, e.target.value))} />
           </Field>
         </div>
         <Field label="Роль / специализация">
-          <input value={sp.role} onChange={(e) => set('role', e.target.value)} placeholder="Например, Массажист" />
+          <input
+            value={sp.role[lang]}
+            onChange={(e) => set('role', setLoc(sp.role, lang, e.target.value))}
+            placeholder="Например, Массажист"
+          />
         </Field>
         <div className="field">
           <span className="field-label">Выполняемые услуги</span>
@@ -124,7 +132,7 @@ function SpecialistEditor({ specialist, onClose }: { specialist: Specialist; onC
                     checked={sp.serviceIds.includes(s.id)}
                     onChange={() => toggleService(s.id)}
                   />
-                  <span>{s.name}</span>
+                  <span>{pick(s.name, A)}</span>
                 </label>
               ))}
             </div>

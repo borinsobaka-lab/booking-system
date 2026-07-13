@@ -2,6 +2,16 @@
 
 export type ID = string
 
+/** Языки интерфейса и контента. */
+export type Lang = 'en' | 'ka' | 'ru'
+
+/** Текст контента на трёх языках (заполняется в админке, показывается клиенту). */
+export interface LocalizedString {
+  en: string
+  ka: string
+  ru: string
+}
+
 /** Роли пользователей админки. owner — суперадминистратор (единственный). */
 export type Role = 'owner' | 'admin' | 'master'
 
@@ -22,8 +32,8 @@ export interface User {
 
 /** Бренд/салон — то, что видит клиент на баннере. */
 export interface Brand {
-  name: string
-  address: string
+  name: LocalizedString
+  address: LocalizedString
   /** data-URL аватарки бренда. */
   avatar: string | null
   /** data-URL баннера. */
@@ -32,8 +42,8 @@ export interface Brand {
 
 export interface Service {
   id: ID
-  name: string
-  description: string
+  name: LocalizedString
+  description: LocalizedString
   /** Длительность в минутах. */
   durationMin: number
   /** Стоимость (в валюте салона). */
@@ -45,10 +55,10 @@ export interface Service {
 
 export interface Specialist {
   id: ID
-  firstName: string
-  lastName: string
+  firstName: LocalizedString
+  lastName: LocalizedString
   /** Должность/специализация, например «Массажист». */
-  role: string
+  role: LocalizedString
   /** data-URL аватарки. */
   avatar: string | null
   /** Услуги, которые выполняет специалист. */

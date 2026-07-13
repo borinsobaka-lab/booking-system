@@ -4,6 +4,7 @@
 
 import { useSyncExternalStore } from 'react'
 import { isRemote } from './config'
+import { toLoc } from './localized'
 import type { Booking, Brand, DaySchedule, DB, Service, Specialist, User } from './types'
 
 const STORAGE_KEY = 'booking-db-v1'
@@ -24,11 +25,24 @@ const DEMO_OWNER: User = {
 
 function emptyBrand(): Brand {
   return {
-    name: 'Массаж-студия',
-    address: 'г. Тбилиси, ул. Руставели, 1',
+    name: { en: 'Massage studio', ka: 'მასაჟის სტუდია', ru: 'Массаж-студия' },
+    address: { en: '', ka: '', ru: '' },
     avatar: null,
     banner: null,
   }
+}
+
+/** Миграция контента к LocalizedString (старые данные были обычными строками). */
+function migrateContent(db: DB): DB {
+  db.brand = { ...db.brand, name: toLoc(db.brand.name), address: toLoc(db.brand.address) }
+  db.services = db.services.map((s) => ({ ...s, name: toLoc(s.name), description: toLoc(s.description) }))
+  db.specialists = db.specialists.map((sp) => ({
+    ...sp,
+    firstName: toLoc(sp.firstName),
+    lastName: toLoc(sp.lastName),
+    role: toLoc(sp.role),
+  }))
+  return db
 }
 
 function emptyDB(): DB {
@@ -63,8 +77,8 @@ function load(): DB {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return withDemoOwner(emptyDB())
     const parsed = JSON.parse(raw) as DB
-    // Мягкая миграция: дозаполняем отсутствующие поля.
-    return withDemoOwner({ ...emptyDB(), ...parsed, brand: { ...emptyBrand(), ...parsed.brand } })
+    // Мягкая миграция: дозаполняем отсутствующие поля + контент → LocalizedString.
+    return withDemoOwner(migrateContent({ ...emptyDB(), ...parsed, brand: { ...emptyBrand(), ...parsed.brand } }))
   } catch {
     return withDemoOwner(emptyDB())
   }
@@ -103,7 +117,7 @@ function emit() {
 
 /** Заменить всё состояние извне (загрузка с сервера). Не пишет обратно. */
 export function hydrate(next: DB): void {
-  state = { ...emptyDB(), ...next, brand: { ...emptyBrand(), ...next.brand } }
+  state = migrateContent({ ...emptyDB(), ...next, brand: { ...emptyBrand(), ...next.brand } })
   emit()
 }
 

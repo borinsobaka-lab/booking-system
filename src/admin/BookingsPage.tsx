@@ -5,7 +5,10 @@ import { navigate, ADMIN_BASE } from '../router'
 import { todayKey, addDays, formatFull, toMinutes, addMinutes } from '../time'
 import { freeSlots } from '../availability'
 import { PX_PER_MIN, TIMELINE_HEIGHT, hourMarks, minToY } from './timeline'
-import type { Booking } from '../types'
+import { pick, specialistName } from '../localized'
+import type { Booking, Lang } from '../types'
+
+const A: Lang = 'ru' // отображение контента в админке
 
 export function BookingsPage() {
   const db = useDB()
@@ -65,11 +68,9 @@ export function BookingsPage() {
               return (
                 <div key={sp.id} className="tl-day">
                   <div className="tl-day-head spec-head">
-                    <Avatar src={sp.avatar} name={`${sp.firstName} ${sp.lastName}`} size={30} />
+                    <Avatar src={sp.avatar} name={specialistName(sp, A)} size={30} />
                     <div className="spec-head-info">
-                      <div className="tl-day-name">
-                        {sp.firstName} {sp.lastName}
-                      </div>
+                      <div className="tl-day-name">{specialistName(sp, A)}</div>
                       <div className={`tl-day-status ${working ? 'work' : 'off'}`}>
                         {working ? 'рабочий день' : 'выходной'}
                       </div>
@@ -119,7 +120,7 @@ export function BookingsPage() {
                           <span className="tl-block-time">
                             {bk.start}–{bk.end}
                           </span>
-                          <span className="tl-block-label">{svc?.name ?? 'Услуга'}</span>
+                          <span className="tl-block-label">{svc ? pick(svc.name, A) : 'Услуга'}</span>
                           {bk.clientName && <span className="tl-block-client">{bk.clientName}</span>}
                         </button>
                       )
@@ -154,10 +155,10 @@ function BookingDetail({ booking, onClose }: { booking: Booking; onClose: () => 
           </dd>
           <dt>Услуга</dt>
           <dd>
-            {svc?.name ?? '—'} {svc && <span className="muted">· {money(svc.price)} · {duration(svc.durationMin)}</span>}
+            {svc ? pick(svc.name, A) : '—'} {svc && <span className="muted">· {money(svc.price)} · {duration(svc.durationMin)}</span>}
           </dd>
           <dt>Специалист</dt>
-          <dd>{sp ? `${sp.firstName} ${sp.lastName}` : '—'}</dd>
+          <dd>{sp ? specialistName(sp, A) : '—'}</dd>
           <dt>Клиент</dt>
           <dd>{booking.clientName || 'без имени'}</dd>
           {booking.clientPhone && (
@@ -255,7 +256,7 @@ function ManualBooking({ date, onClose }: { date: string; onClose: () => void })
             <option value="">— выберите —</option>
             {db.specialists.map((s) => (
               <option key={s.id} value={s.id}>
-                {s.firstName} {s.lastName}
+                {specialistName(s, A)}
               </option>
             ))}
           </select>
@@ -272,7 +273,7 @@ function ManualBooking({ date, onClose }: { date: string; onClose: () => void })
               <option value="">— выберите —</option>
               {availableServices.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.name} · {duration(s.durationMin)}
+                  {pick(s.name, A)} · {duration(s.durationMin)}
                 </option>
               ))}
             </select>

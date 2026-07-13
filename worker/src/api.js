@@ -52,6 +52,11 @@ export async function handle(request, env, deps) {
 
   if (method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders(env, request) })
 
+  // Явная диагностика недонастроенного Worker'а (иначе — невнятная ошибка HMAC).
+  if ((path === '/api/auth/login' || path === '/api/data') && !env.SESSION_SECRET) {
+    return json({ error: 'Сервер не настроен: не задан секрет SESSION_SECRET' }, 500, env, request)
+  }
+
   try {
     // --- Публичные данные для витрины (без персональных данных) ---
     if (path === '/api/public' && method === 'GET') {

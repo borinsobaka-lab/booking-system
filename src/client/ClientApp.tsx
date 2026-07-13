@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useDB, addBooking, uid } from '../db'
-import { Avatar, money, duration } from '../ui'
+import { Avatar } from '../ui'
 import { isRemote } from '../config'
 import { enterClient } from '../session'
 import * as remote from '../remote'
-import { addMinutes, formatFull } from '../time'
+import { useI18n, fmtDuration, fmtPrice, fmtFull, LANGS } from '../i18n'
+import { pick, specialistName } from '../localized'
+import { addMinutes } from '../time'
 import { BookingWizard, type Flow } from './BookingWizard'
 import type { Booking, BookingForm } from '../types'
 
@@ -15,6 +17,7 @@ type Screen =
 
 export function ClientApp(_props: { path: string }) {
   const db = useDB()
+  const { t } = useI18n()
   const [screen, setScreen] = useState<Screen>({ kind: 'landing' })
   const [loading, setLoading] = useState(isRemote())
 
@@ -37,7 +40,6 @@ export function ClientApp(_props: { path: string }) {
   ) => {
     const svc = db.services.find((s) => s.id === v.serviceId)!
     if (isRemote()) {
-      // Бронь создаёт сервер (валидирует занятость, пишет в приватный репозиторий).
       try {
         const booking = await remote.submitBooking({
           specialistId: v.specialistId,
@@ -52,7 +54,7 @@ export function ClientApp(_props: { path: string }) {
         })
         setScreen({ kind: 'done', booking })
       } catch (e) {
-        alert(e instanceof Error ? e.message : 'Не удалось создать запись. Попробуйте другое время.')
+        alert(e instanceof Error ? e.message : t('error.booking'))
       }
       return
     }
@@ -77,28 +79,22 @@ export function ClientApp(_props: { path: string }) {
 
   return (
     <div className="client">
+      <LangSwitcher />
       <Banner />
       <div className="client-content">
         {loading && (
           <div className="landing">
             <div className="empty">
               <div className="spinner" />
-              <p className="muted">Загрузка…</p>
+              <p className="muted">{t('loading')}</p>
             </div>
           </div>
         )}
         {!loading && screen.kind === 'landing' && (
-          <Landing
-            configured={configured}
-            onStart={(flow) => setScreen({ kind: 'wizard', flow })}
-          />
+          <Landing configured={configured} onStart={(flow) => setScreen({ kind: 'wizard', flow })} />
         )}
         {screen.kind === 'wizard' && (
-          <BookingWizard
-            flow={screen.flow}
-            onExit={() => setScreen({ kind: 'landing' })}
-            onBooked={book}
-          />
+          <BookingWizard flow={screen.flow} onExit={() => setScreen({ kind: 'landing' })} onBooked={book} />
         )}
         {screen.kind === 'done' && (
           <DoneScreen booking={screen.booking} onAgain={() => setScreen({ kind: 'landing' })} />
@@ -108,9 +104,29 @@ export function ClientApp(_props: { path: string }) {
   )
 }
 
+function LangSwitcher() {
+  const { lang, setLang } = useI18n()
+  return (
+    <div className="lang-switcher">
+      {LANGS.map((l) => (
+        <button
+          key={l.code}
+          className={`lang-btn${lang === l.code ? ' active' : ''}`}
+          onClick={() => setLang(l.code)}
+        >
+          {l.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function Banner() {
   const db = useDB()
+  const { lang } = useI18n()
   const { brand } = db
+  const name = pick(brand.name, lang)
+  const address = pick(brand.address, lang)
   return (
     <header
       className="client-banner"
@@ -118,50 +134,45 @@ function Banner() {
     >
       <div className="client-banner-overlay">
         <div className="brand-avatar">
-          <Avatar src={brand.avatar} name={brand.name} size={72} />
+          <Avatar src={brand.avatar} name={name} size={72} />
         </div>
-        <h1 className="brand-name">{brand.name}</h1>
-        <div className="brand-address">📍 {brand.address}</div>
+        <h1 className="brand-name">{name}</h1>
+        {address && <div className="brand-address">📍 {address}</div>}
       </div>
     </header>
   )
 }
 
-function Landing({
-  configured,
-  onStart,
-}: {
-  configured: boolean
-  onStart: (flow: Flow) => void
-}) {
+function Landing({ configured, onStart }: { configured: boolean; onStart: (flow: Flow) => void }) {
+  const { t } = useI18n()
   if (!configured) {
     return (
       <div className="landing">
         <div className="empty">
           <div className="empty-emoji">🛠️</div>
-          <p>Салон ещё настраивается. Загляните чуть позже — скоро можно будет записаться онлайн.</p>
+          <p>{t('notConfigured')}</p>
         </div>
       </div>
     )
   }
   return (
     <div className="landing">
-      <p className="landing-lead">Онлайн-запись за минуту. С чего начнём?</p>
+      <p className="landing-lead">{t('landing.lead')}</p>
       <div className="entry-buttons">
         <button className="entry-btn" onClick={() => onStart('master')}>
           <span className="entry-icon">🧑‍⚕️</span>
-          <span className="entry-label">Мастер</span>
-          <span className="entry-sub">Выбрать мастера, потом услугу и время</span>
+          <span className="entry-label">{t('entry.master')}</span>
+          <span className="entry-sub">{t('entry.master.sub')}</span>
         </button>
         <button className="entry-btn" onClick={() => onStart('date')}>
           <span className="entry-icon">📅</span>
-          <span className="entry-label">Выбрать дату</span>
-          <span className="entry-sub">Свободные дата и время → услуга → мастер</span>
+          <span className="entry-label">{t('entry.date')}</span>
+          <span className="entry-sub">{t('entry.date.sub')}</span>
         </button>
         <button className="entry-btn" onClick={() => onStart('service')}>
           <span className="entry-icon">💆</span>
-          <span className="entry-label">Выбрать услугу</span>
-          <span className="entry-sub">Услуга → мастер → дата и время</span>
+          <span className="entry-label">{t('entry.service')}</span>
+          <span className="entry-sub">{t('entry.service.sub')}</span>
         </button>
       </div>
       <ServicesShowcase />
@@ -171,24 +182,22 @@ function Landing({
 
 function ServicesShowcase() {
   const db = useDB()
+  const { lang, t } = useI18n()
   if (db.services.length === 0) return null
   return (
     <section className="showcase">
-      <h3>Наши услуги</h3>
+      <h3>{t('showcase.title')}</h3>
       <div className="showcase-grid">
         {db.services.map((s) => (
           <div className="showcase-card" key={s.id}>
-            <div
-              className="showcase-img"
-              style={s.image ? { backgroundImage: `url(${s.image})` } : undefined}
-            >
+            <div className="showcase-img" style={s.image ? { backgroundImage: `url(${s.image})` } : undefined}>
               {!s.image && <span>💆</span>}
             </div>
             <div className="showcase-body">
-              <div className="showcase-title">{s.name}</div>
+              <div className="showcase-title">{pick(s.name, lang)}</div>
               <div className="showcase-meta">
-                <span>{duration(s.durationMin)}</span>
-                <span className="showcase-price">{money(s.price)}</span>
+                <span>{fmtDuration(s.durationMin, lang)}</span>
+                <span className="showcase-price">{fmtPrice(s.price, lang)}</span>
               </div>
             </div>
           </div>
@@ -200,39 +209,38 @@ function ServicesShowcase() {
 
 function DoneScreen({ booking, onAgain }: { booking: Booking; onAgain: () => void }) {
   const db = useDB()
+  const { lang, t } = useI18n()
   const svc = db.services.find((s) => s.id === booking.serviceId)
   const sp = db.specialists.find((s) => s.id === booking.specialistId)
   return (
     <div className="done">
       <div className="done-check">✓</div>
-      <h2>Вы записаны!</h2>
-      <p className="muted">Запись подтверждена автоматически.</p>
+      <h2>{t('done.title')}</h2>
+      <p className="muted">{t('done.sub')}</p>
       <div className="confirm-card">
         <div className="confirm-row">
-          <span>Услуга</span>
-          <b>{svc?.name}</b>
+          <span>{t('label.service')}</span>
+          <b>{svc && pick(svc.name, lang)}</b>
         </div>
         <div className="confirm-row">
-          <span>Мастер</span>
-          <b>
-            {sp?.firstName} {sp?.lastName}
-          </b>
+          <span>{t('label.specialist')}</span>
+          <b>{sp ? specialistName(sp, lang) : ''}</b>
         </div>
         <div className="confirm-row">
-          <span>Когда</span>
+          <span>{t('label.when')}</span>
           <b>
-            {formatFull(booking.date)}, {booking.start}–{booking.end}
+            {fmtFull(booking.date, lang)}, {booking.start}–{booking.end}
           </b>
         </div>
         {booking.clientName && (
           <div className="confirm-row">
-            <span>Имя</span>
+            <span>{t('label.name')}</span>
             <b>{booking.clientName}</b>
           </div>
         )}
       </div>
       <button className="btn btn-primary btn-block" onClick={onAgain}>
-        Записаться ещё раз
+        {t('done.again')}
       </button>
     </div>
   )

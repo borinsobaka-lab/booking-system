@@ -1,6 +1,31 @@
 // Небольшие переиспользуемые UI-компоненты.
 
 import { useEffect, useRef, type ReactNode } from 'react'
+import { LANGS } from './i18n'
+import type { Lang, LocalizedString } from './types'
+
+/** Вкладки языков для заполнения контента на EN/KA/RU. */
+export function LangTabs({ value, onChange }: { value: Lang; onChange: (l: Lang) => void }) {
+  return (
+    <div className="lang-tabs">
+      {LANGS.map((l) => (
+        <button
+          key={l.code}
+          type="button"
+          className={`lang-tab${value === l.code ? ' active' : ''}`}
+          onClick={() => onChange(l.code)}
+        >
+          {l.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/** Обновить один язык в LocalizedString. */
+export function setLoc(v: LocalizedString, lang: Lang, val: string): LocalizedString {
+  return { ...v, [lang]: val }
+}
 
 /** Читает выбранный файл-картинку в data-URL (с даунскейлом до maxSize px). */
 export function readImageFile(file: File, maxSize = 800): Promise<string> {
@@ -154,9 +179,9 @@ export function Field({ label, children }: { label: string; children: ReactNode 
   )
 }
 
-/** Форматирование цены. */
+/** Форматирование цены (валюта салона — лари). */
 export function money(v: number): string {
-  return `${v.toLocaleString('ru-RU')} ₽`
+  return `${v.toLocaleString('ru-RU')} ₾`
 }
 
 /** Длительность в человекочитаемом виде. */

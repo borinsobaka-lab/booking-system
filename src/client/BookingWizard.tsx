@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react'
 import { useDB } from '../db'
-import { Avatar, money, duration } from '../ui'
-import { addMinutes, fromDateKey, toDateKey, todayKey, formatFull } from '../time'
+import { Avatar } from '../ui'
+import { useI18n, fmtDuration, fmtPrice, fmtFull, fmtMonthYear, weekdayHeaders } from '../i18n'
+import { pick, specialistName } from '../localized'
+import { addMinutes, fromDateKey, toDateKey, todayKey } from '../time'
 import {
   dayAvailable,
   servicesBookableAt,
@@ -22,12 +24,12 @@ const FLOWS: Record<Flow, Step[]> = {
   service: ['service', 'specialist', 'date', 'time', 'confirm'],
 }
 
-const STEP_TITLE: Record<Step, string> = {
-  specialist: 'Выберите мастера',
-  service: 'Выберите услугу',
-  date: 'Выберите дату',
-  time: 'Выберите время',
-  confirm: 'Подтверждение',
+const STEP_KEY: Record<Step, string> = {
+  specialist: 'step.specialist',
+  service: 'step.service',
+  date: 'step.date',
+  time: 'step.time',
+  confirm: 'step.confirm',
 }
 
 export function BookingWizard({
@@ -39,6 +41,7 @@ export function BookingWizard({
   onExit: () => void
   onBooked: (sel: Required<Pick<Selection, 'serviceId' | 'specialistId' | 'date' | 'start'>> & BookingForm) => void
 }) {
+  const { t } = useI18n()
   const steps = FLOWS[flow]
   const [index, setIndex] = useState(0)
   const [sel, setSel] = useState<Selection>({})
@@ -48,13 +51,11 @@ export function BookingWizard({
   const next = () => setIndex((i) => Math.min(steps.length - 1, i + 1))
   const back = () => {
     if (index === 0) return onExit()
-    // при шаге назад сбрасываем выбор текущего шага, чтобы не «залипало»
     const prev = steps[index - 1]
     clearFrom(prev)
     setIndex((i) => i - 1)
   }
   const clearFrom = (fromStep: Step) => {
-    // очищаем значения, выбранные на fromStep и позже
     const order = steps.slice(steps.indexOf(fromStep))
     setSel((s) => {
       const n = { ...s }
@@ -77,7 +78,7 @@ export function BookingWizard({
     <div className="wizard">
       <div className="wizard-top">
         <button className="wiz-back" onClick={back}>
-          ‹ Назад
+          ‹ {t('back')}
         </button>
         <div className="wiz-progress">
           <div className="wiz-progress-bar" style={{ width: `${progress}%` }} />
@@ -87,7 +88,7 @@ export function BookingWizard({
         </span>
       </div>
 
-      <h2 className="wiz-title">{STEP_TITLE[step]}</h2>
+      <h2 className="wiz-title">{t(STEP_KEY[step])}</h2>
       <SelectionSummary sel={sel} />
 
       <div className="wiz-body">
@@ -103,12 +104,13 @@ export function BookingWizard({
 
 function SelectionSummary({ sel }: { sel: Selection }) {
   const db = useDB()
+  const { lang } = useI18n()
   const svc = db.services.find((s) => s.id === sel.serviceId)
   const sp = db.specialists.find((s) => s.id === sel.specialistId)
   const parts: string[] = []
-  if (sp) parts.push(`${sp.firstName} ${sp.lastName}`)
-  if (svc) parts.push(svc.name)
-  if (sel.date) parts.push(formatFull(sel.date))
+  if (sp) parts.push(specialistName(sp, lang))
+  if (svc) parts.push(pick(svc.name, lang))
+  if (sel.date) parts.push(fmtFull(sel.date, lang))
   if (sel.start) parts.push(sel.start)
   if (parts.length === 0) return null
   return <div className="wiz-summary">{parts.join(' · ')}</div>
@@ -117,12 +119,11 @@ function SelectionSummary({ sel }: { sel: Selection }) {
 // --- Шаг: специалист ---
 function SpecialistStep({ sel, onPick }: { sel: Selection; onPick: (id: string) => void }) {
   const db = useDB()
-  // Кого показываем: если известна услуга — только тех, кто её делает.
+  const { lang, t } = useI18n()
   const list: Specialist[] = sel.serviceId ? specialistsDoing(sel.serviceId) : db.specialists
-  // Если известны дата и время — недоступных блёрим, но показываем.
   const knowsTime = !!(sel.date && sel.start && sel.serviceId)
 
-  if (list.length === 0) return <Empty text="Пока нет мастеров для этой услуги." />
+  if (list.length === 0) return <Empty text={t('empty.noSpecialists')} />
 
   return (
     <div className="pick-grid">
@@ -135,12 +136,10 @@ function SpecialistStep({ sel, onPick }: { sel: Selection; onPick: (id: string) 
             disabled={!free}
             onClick={() => free && onPick(sp.id)}
           >
-            <Avatar src={sp.avatar} name={`${sp.firstName} ${sp.lastName}`} size={72} dim={!free} />
-            <div className="pick-title">
-              {sp.firstName} {sp.lastName}
-            </div>
-            <div className="pick-sub">{sp.role}</div>
-            {!free && <div className="pick-badge">занят в это время</div>}
+            <Avatar src={sp.avatar} name={specialistName(sp, lang)} size={72} dim={!free} />
+            <div className="pick-title">{specialistName(sp, lang)}</div>
+            <div className="pick-sub">{pick(sp.role, lang)}</div>
+            {!free && <div className="pick-badge">{t('specialist.busy')}</div>}
           </button>
         )
       })}
@@ -151,12 +150,13 @@ function SpecialistStep({ sel, onPick }: { sel: Selection; onPick: (id: string) 
 // --- Шаг: услуга ---
 function ServiceStep({ sel, onPick }: { sel: Selection; onPick: (id: string) => void }) {
   const db = useDB()
+  const { lang, t } = useI18n()
   let list: Service[]
   if (sel.specialistId) list = servicesOf(sel.specialistId)
   else if (sel.date && sel.start) list = servicesBookableAt(sel.date, sel.start)
   else list = db.services
 
-  if (list.length === 0) return <Empty text="Нет доступных услуг для этого выбора." />
+  if (list.length === 0) return <Empty text={t('empty.noServices')} />
 
   return (
     <div className="svc-list">
@@ -166,13 +166,13 @@ function ServiceStep({ sel, onPick }: { sel: Selection; onPick: (id: string) => 
             {!s.image && <span>💆</span>}
           </div>
           <div className="svc-row-main">
-            <div className="svc-row-title">{s.name}</div>
-            {s.description && <div className="svc-row-desc">{s.description}</div>}
+            <div className="svc-row-title">{pick(s.name, lang)}</div>
+            {pick(s.description, lang) && <div className="svc-row-desc">{pick(s.description, lang)}</div>}
             <div className="svc-row-meta">
-              <span>⏱ {duration(s.durationMin)}</span>
+              <span>⏱ {fmtDuration(s.durationMin, lang)}</span>
             </div>
           </div>
-          <div className="svc-row-price">{money(s.price)}</div>
+          <div className="svc-row-price">{fmtPrice(s.price, lang)}</div>
         </button>
       ))}
     </div>
@@ -181,6 +181,7 @@ function ServiceStep({ sel, onPick }: { sel: Selection; onPick: (id: string) => 
 
 // --- Шаг: дата ---
 function DateStep({ sel, onPick }: { sel: Selection; onPick: (d: string) => void }) {
+  const { lang, t } = useI18n()
   const [month, setMonth] = useState(() => {
     const d = fromDateKey(todayKey())
     return { y: d.getFullYear(), m: d.getMonth() }
@@ -188,7 +189,8 @@ function DateStep({ sel, onPick }: { sel: Selection; onPick: (d: string) => void
 
   const grid = useMemo(() => buildMonth(month.y, month.m), [month])
   const today = todayKey()
-  const monthLabel = new Date(month.y, month.m, 1).toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' })
+  const monthLabel = fmtMonthYear(month.y, month.m, lang)
+  const weekdays = useMemo(() => weekdayHeaders(lang), [lang])
 
   const shift = (delta: number) => {
     const d = new Date(month.y, month.m + delta, 1)
@@ -207,8 +209,8 @@ function DateStep({ sel, onPick }: { sel: Selection; onPick: (d: string) => void
         </button>
       </div>
       <div className="cal-weekdays">
-        {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map((w) => (
-          <div key={w}>{w}</div>
+        {weekdays.map((w, i) => (
+          <div key={i}>{w}</div>
         ))}
       </div>
       <div className="cal-grid">
@@ -223,7 +225,6 @@ function DateStep({ sel, onPick }: { sel: Selection; onPick: (d: string) => void
               className={`cal-cell${avail ? ' available' : ''}${cell === today ? ' today' : ''}${sel.date === cell ? ' selected' : ''}`}
               disabled={!avail}
               onClick={() => onPick(cell)}
-              title={avail ? 'Есть свободное время' : past ? 'Прошедший день' : 'Нет свободного времени'}
             >
               {d.getDate()}
               {avail && <span className="cal-dot" />}
@@ -233,7 +234,7 @@ function DateStep({ sel, onPick }: { sel: Selection; onPick: (d: string) => void
       </div>
       <div className="cal-legend">
         <span>
-          <span className="cal-dot" /> есть свободное время
+          <span className="cal-dot" /> {t('cal.available')}
         </span>
       </div>
     </div>
@@ -242,16 +243,17 @@ function DateStep({ sel, onPick }: { sel: Selection; onPick: (d: string) => void
 
 // --- Шаг: время ---
 function TimeStep({ sel, onPick }: { sel: Selection; onPick: (t: string) => void }) {
+  const { lang, t } = useI18n()
   const times = useMemo(() => (sel.date ? startsFor(sel.date, sel) : []), [sel])
-  if (!sel.date) return <Empty text="Сначала выберите дату." />
-  if (times.length === 0) return <Empty text="На этот день нет свободного времени." />
+  if (!sel.date) return <Empty text={t('empty.pickDate')} />
+  if (times.length === 0) return <Empty text={t('empty.noTime')} />
   return (
     <div>
-      <div className="time-day muted">{formatFull(sel.date)}</div>
+      <div className="time-day muted">{fmtFull(sel.date, lang)}</div>
       <div className="slot-grid big">
-        {times.map((t) => (
-          <button key={t} className={`slot${sel.start === t ? ' active' : ''}`} onClick={() => onPick(t)}>
-            {t}
+        {times.map((time) => (
+          <button key={time} className={`slot${sel.start === time ? ' active' : ''}`} onClick={() => onPick(time)}>
+            {time}
           </button>
         ))}
       </div>
@@ -268,6 +270,7 @@ function ConfirmStep({
   onBook: (v: Required<Pick<Selection, 'serviceId' | 'specialistId' | 'date' | 'start'>> & BookingForm) => void
 }) {
   const db = useDB()
+  const { lang, t } = useI18n()
   const [form, setForm] = useState<BookingForm>({
     clientName: '',
     clientPhone: '',
@@ -291,78 +294,56 @@ function ConfirmStep({
 
   return (
     <div className="confirm">
-      {/* Сводка: мастер под иконкой, дата/время, услуга и стоимость */}
       <div className="booking-summary">
         <div className="booking-master">
-          <Avatar src={sp?.avatar ?? null} name={`${sp?.firstName ?? ''} ${sp?.lastName ?? ''}`} size={72} />
-          <div className="booking-master-name">
-            {sp?.firstName} {sp?.lastName}
-          </div>
-          <div className="booking-master-role">{sp?.role}</div>
+          <Avatar src={sp?.avatar ?? null} name={sp ? specialistName(sp, lang) : ''} size={72} />
+          <div className="booking-master-name">{sp ? specialistName(sp, lang) : ''}</div>
+          <div className="booking-master-role">{sp ? pick(sp.role, lang) : ''}</div>
         </div>
         <div className="confirm-card">
           <div className="confirm-row">
-            <span>Дата и время</span>
+            <span>{t('label.dateTime')}</span>
             <b>
-              {sel.date && formatFull(sel.date)}, {sel.start}–{end}
+              {sel.date && fmtFull(sel.date, lang)}, {sel.start}–{end}
             </b>
           </div>
           <div className="confirm-row">
-            <span>Услуга</span>
-            <b>{svc?.name}</b>
+            <span>{t('label.service')}</span>
+            <b>{svc && pick(svc.name, lang)}</b>
           </div>
           <div className="confirm-row">
-            <span>Стоимость услуги</span>
-            <b>{svc && money(svc.price)}</b>
+            <span>{t('label.serviceCost')}</span>
+            <b>{svc && fmtPrice(svc.price, lang)}</b>
           </div>
           <div className="confirm-row total">
-            <span>Итого к оплате</span>
-            <b>{svc && money(svc.price)}</b>
+            <span>{t('label.total')}</span>
+            <b>{svc && fmtPrice(svc.price, lang)}</b>
           </div>
         </div>
       </div>
 
-      {/* Персональные данные */}
-      <h3 className="form-section-title">Ваши данные</h3>
+      <h3 className="form-section-title">{t('form.yourData')}</h3>
       <label className="field">
-        <span className="field-label">Имя *</span>
-        <input value={form.clientName} onChange={(e) => set('clientName', e.target.value)} placeholder="Как к вам обращаться" />
+        <span className="field-label">{t('label.name')} *</span>
+        <input value={form.clientName} onChange={(e) => set('clientName', e.target.value)} placeholder={t('form.namePh')} />
       </label>
       <label className="field">
-        <span className="field-label">Номер телефона *</span>
-        <input
-          type="tel"
-          value={form.clientPhone}
-          onChange={(e) => set('clientPhone', e.target.value)}
-          placeholder="+995 555 12 34 56"
-        />
+        <span className="field-label">{t('label.phone')} *</span>
+        <input type="tel" value={form.clientPhone} onChange={(e) => set('clientPhone', e.target.value)} placeholder="+995 555 12 34 56" />
       </label>
       <label className="field">
-        <span className="field-label">Email</span>
-        <input
-          type="email"
-          value={form.clientEmail}
-          onChange={(e) => set('clientEmail', e.target.value)}
-          placeholder="you@example.com"
-        />
-        {!emailValid && <span className="field-error">Проверьте адрес почты</span>}
+        <span className="field-label">{t('label.email')}</span>
+        <input type="email" value={form.clientEmail} onChange={(e) => set('clientEmail', e.target.value)} placeholder="you@example.com" />
+        {!emailValid && <span className="field-error">{t('form.emailErr')}</span>}
       </label>
       <label className="field">
-        <span className="field-label">Комментарий</span>
-        <textarea
-          value={form.comment}
-          onChange={(e) => set('comment', e.target.value)}
-          rows={3}
-          placeholder="Пожелания к записи (необязательно)"
-        />
+        <span className="field-label">{t('label.comment')}</span>
+        <textarea value={form.comment} onChange={(e) => set('comment', e.target.value)} rows={3} placeholder={t('form.commentPh')} />
       </label>
 
       <label className="consent">
         <input type="checkbox" checked={form.consent} onChange={(e) => set('consent', e.target.checked)} />
-        <span>
-          Я согласен(а) на обработку моих персональных данных, в том числе специальных категорий, для
-          оформления записи.
-        </span>
+        <span>{t('form.consent')}</span>
       </label>
 
       <button
@@ -383,7 +364,7 @@ function ConfirmStep({
           })
         }
       >
-        Забронировать
+        {t('form.book')}
       </button>
     </div>
   )

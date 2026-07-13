@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { useDB, updateBrand } from '../db'
-import { Field, ImagePicker } from '../ui'
+import { Field, ImagePicker, LangTabs, setLoc } from '../ui'
+import type { Lang } from '../types'
 
 /** Настройки бренда — то, что клиент видит на витрине записи. */
 export function SettingsPage() {
   const db = useDB()
+  const [lang, setLang] = useState<Lang>('en')
   const [name, setName] = useState(db.brand.name)
   const [address, setAddress] = useState(db.brand.address)
   const [saved, setSaved] = useState(false)
@@ -49,11 +51,27 @@ export function SettingsPage() {
           </div>
         </div>
 
+        <p className="muted small">Название и адрес заполняются на каждом языке.</p>
+        <LangTabs value={lang} onChange={setLang} />
         <Field label="Название бренда">
-          <input value={name} onChange={(e) => setName(e.target.value)} onBlur={() => { updateBrand({ name }); flash() }} />
+          <input
+            value={name[lang]}
+            onChange={(e) => setName(setLoc(name, lang, e.target.value))}
+            onBlur={() => {
+              updateBrand({ name })
+              flash()
+            }}
+          />
         </Field>
         <Field label="Адрес">
-          <input value={address} onChange={(e) => setAddress(e.target.value)} onBlur={() => { updateBrand({ address }); flash() }} />
+          <input
+            value={address[lang]}
+            onChange={(e) => setAddress(setLoc(address, lang, e.target.value))}
+            onBlur={() => {
+              updateBrand({ address })
+              flash()
+            }}
+          />
         </Field>
 
         {saved && <div className="saved-hint">Сохранено ✓</div>}
