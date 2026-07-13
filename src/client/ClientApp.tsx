@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useDB, addBooking, uid } from '../db'
 import { Avatar, money, duration } from '../ui'
-import { navigate } from '../router'
 import { isRemote } from '../config'
 import { enterClient } from '../session'
 import * as remote from '../remote'
@@ -105,11 +104,6 @@ export function ClientApp(_props: { path: string }) {
           <DoneScreen booking={screen.booking} onAgain={() => setScreen({ kind: 'landing' })} />
         )}
       </div>
-      <footer className="client-footer">
-        <button className="linkbtn" onClick={() => navigate('/admin')}>
-          Вход для сотрудников
-        </button>
-      </footer>
     </div>
   )
 }

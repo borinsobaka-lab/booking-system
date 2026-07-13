@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuth, roleLabel } from '../auth'
-import { navigate } from '../router'
+import { navigate, ADMIN_BASE } from '../router'
 import { isRemote } from '../config'
 import { enterAdmin, stopPersisting } from '../session'
 import { SetupScreen } from './SetupScreen'
@@ -16,20 +16,20 @@ import { Avatar } from '../ui'
 type Tab = 'bookings' | 'services' | 'specialists' | 'schedule' | 'users' | 'settings'
 
 const TABS: { id: Tab; path: string; label: string; icon: string; ownerOnly?: boolean }[] = [
-  { id: 'bookings', path: '/admin', label: 'Записи', icon: '📅' },
-  { id: 'schedule', path: '/admin/schedule', label: 'Расписание', icon: '🗓️' },
-  { id: 'services', path: '/admin/services', label: 'Услуги', icon: '💆' },
-  { id: 'specialists', path: '/admin/specialists', label: 'Специалисты', icon: '🧑‍⚕️' },
-  { id: 'users', path: '/admin/users', label: 'Пользователи', icon: '🔑', ownerOnly: true },
-  { id: 'settings', path: '/admin/settings', label: 'Бренд', icon: '🏷️', ownerOnly: true },
+  { id: 'bookings', path: ADMIN_BASE, label: 'Записи', icon: '📅' },
+  { id: 'schedule', path: `${ADMIN_BASE}/schedule`, label: 'Расписание', icon: '🗓️' },
+  { id: 'services', path: `${ADMIN_BASE}/services`, label: 'Услуги', icon: '💆' },
+  { id: 'specialists', path: `${ADMIN_BASE}/specialists`, label: 'Специалисты', icon: '🧑‍⚕️' },
+  { id: 'users', path: `${ADMIN_BASE}/users`, label: 'Пользователи', icon: '🔑', ownerOnly: true },
+  { id: 'settings', path: `${ADMIN_BASE}/settings`, label: 'Бренд', icon: '🏷️', ownerOnly: true },
 ]
 
 function tabForPath(path: string): Tab {
-  if (path.startsWith('/admin/services')) return 'services'
-  if (path.startsWith('/admin/specialists')) return 'specialists'
-  if (path.startsWith('/admin/schedule')) return 'schedule'
-  if (path.startsWith('/admin/users')) return 'users'
-  if (path.startsWith('/admin/settings')) return 'settings'
+  if (path.startsWith(`${ADMIN_BASE}/services`)) return 'services'
+  if (path.startsWith(`${ADMIN_BASE}/specialists`)) return 'specialists'
+  if (path.startsWith(`${ADMIN_BASE}/schedule`)) return 'schedule'
+  if (path.startsWith(`${ADMIN_BASE}/users`)) return 'users'
+  if (path.startsWith(`${ADMIN_BASE}/settings`)) return 'settings'
   return 'bookings'
 }
 

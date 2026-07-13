@@ -2,9 +2,9 @@ import { expect, test, type Page } from '@playwright/test'
 
 // Данные живут в localStorage — каждый тест стартует с чистого состояния.
 test.beforeEach(async ({ page }) => {
-  await page.goto('#/admin')
+  await page.goto('#/admin-panel')
   await page.evaluate(() => localStorage.clear())
-  await page.goto('#/admin')
+  await page.goto('#/admin-panel')
 })
 
 async function setupOwner(page: Page) {
@@ -61,4 +61,18 @@ test('клиентская витрина показывает три пути �
   await expect(page.getByText('Мастер', { exact: true })).toBeVisible()
   await expect(page.getByText('Выбрать дату', { exact: true })).toBeVisible()
   await expect(page.getByText('Выбрать услугу', { exact: true })).toBeVisible()
+  // В клиентской витрине НЕ должно быть входа для сотрудников/админки
+  await expect(page.getByText(/сотрудник/i)).toHaveCount(0)
+  await expect(page.getByText(/админ/i)).toHaveCount(0)
+})
+
+test('клиентская витрина не ведёт в админку, админка — по своему адресу', async ({ page }) => {
+  await setupOwner(page)
+  await page.goto('#/')
+  // на клиентской странице нет ссылок на /admin
+  const adminLinks = await page.locator('a[href*="admin"], button:has-text("сотрудник")').count()
+  expect(adminLinks).toBe(0)
+  // админка открывается только по своему адресу
+  await page.goto('#/admin-panel')
+  await expect(page.getByRole('heading', { name: 'Записи' })).toBeVisible()
 })

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useDB, deleteBooking, addBooking, uid } from '../db'
 import { Avatar, Field, Modal, money, duration } from '../ui'
-import { navigate } from '../router'
+import { navigate, ADMIN_BASE } from '../router'
 import { todayKey, addDays, formatFull, toMinutes, addMinutes } from '../time'
 import { freeSlots } from '../availability'
 import { PX_PER_MIN, TIMELINE_HEIGHT, hourMarks, minToY } from './timeline'
@@ -100,7 +100,7 @@ export function BookingsPage() {
                     ))}
 
                     {!working && (
-                      <button className="tl-off-overlay" onClick={() => navigate('/admin/schedule')}>
+                      <button className="tl-off-overlay" onClick={() => navigate(`${ADMIN_BASE}/schedule`)}>
                         Выходной
                         <span className="muted small">Назначить в расписании →</span>
                       </button>
