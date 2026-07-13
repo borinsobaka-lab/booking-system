@@ -118,7 +118,7 @@ function LangSwitcher() {
       <select className="lang-select" value={lang} onChange={(e) => setLang(e.target.value as Lang)} aria-label="Language">
         {LANGS.map((l) => (
           <option key={l.code} value={l.code}>
-            {l.full}
+            {l.label}
           </option>
         ))}
       </select>

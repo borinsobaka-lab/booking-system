@@ -8,10 +8,10 @@ import type { Lang } from './types'
 export const DEFAULT_LANG: Lang = 'en'
 const STORAGE_KEY = 'booking-lang'
 
-export const LANGS: { code: Lang; label: string; full: string }[] = [
-  { code: 'en', label: 'EN', full: 'English' },
-  { code: 'ka', label: 'ქარ', full: 'ქართული' },
-  { code: 'ru', label: 'RUS', full: 'Русский' },
+export const LANGS: { code: Lang; label: string }[] = [
+  { code: 'en', label: 'EN' },
+  { code: 'ka', label: 'GE' },
+  { code: 'ru', label: 'RU' },
 ]
 
 function localeFor(lang: Lang): string {
