@@ -15,6 +15,7 @@ export function SpecialistsPage() {
     firstName: emptyLoc(),
     lastName: emptyLoc(),
     role: { en: 'Massage therapist', ka: 'მასაჟისტი', ru: 'Массажист' },
+    bio: emptyLoc(),
     avatar: null,
     serviceIds: [],
     createdAt: Date.now(),
@@ -117,6 +118,14 @@ function SpecialistEditor({ specialist, onClose }: { specialist: Specialist; onC
             value={sp.role[lang]}
             onChange={(e) => set('role', setLoc(sp.role, lang, e.target.value))}
             placeholder="Например, Массажист"
+          />
+        </Field>
+        <Field label="Биография (показывается клиенту в карточке)">
+          <textarea
+            value={sp.bio[lang]}
+            onChange={(e) => set('bio', setLoc(sp.bio, lang, e.target.value))}
+            rows={4}
+            placeholder="Опыт, образование, подход к работе…"
           />
         </Field>
         <div className="field">

@@ -57,7 +57,17 @@ const DICT: Dict = {
   'step.service': { en: 'Choose a service', ka: 'აირჩიეთ სერვისი', ru: 'Выберите услугу' },
   'step.date': { en: 'Choose a date', ka: 'აირჩიეთ თარიღი', ru: 'Выберите дату' },
   'step.time': { en: 'Choose a time', ka: 'აირჩიეთ დრო', ru: 'Выберите время' },
+  'step.datetime': { en: 'Choose date & time', ka: 'აირჩიეთ თარიღი და დრო', ru: 'Выберите дату и время' },
   'step.confirm': { en: 'Confirmation', ka: 'დადასტურება', ru: 'Подтверждение' },
+  'continue': { en: 'Continue', ka: 'გაგრძელება', ru: 'Продолжить' },
+  'more': { en: 'Show more', ka: 'მეტის ჩვენება', ru: 'Развернуть' },
+  'less': { en: 'Show less', ka: 'ნაკლების ჩვენება', ru: 'Свернуть' },
+  'specialist.select': {
+    en: 'Choose this specialist',
+    ka: 'ამ სპეციალისტის არჩევა',
+    ru: 'Выбрать этого специалиста',
+  },
+  'specialist.closeBio': { en: 'Close bio', ka: 'ბიოგრაფიის დახურვა', ru: 'Закрыть биографию' },
 
   'empty.noSpecialists': {
     en: 'No specialists for this service yet.',

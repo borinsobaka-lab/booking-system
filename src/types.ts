@@ -59,6 +59,8 @@ export interface Specialist {
   lastName: LocalizedString
   /** Должность/специализация, например «Массажист». */
   role: LocalizedString
+  /** Биография / подробности — показывается в карточке специалиста у клиента. */
+  bio: LocalizedString
   /** data-URL аватарки. */
   avatar: string | null
   /** Услуги, которые выполняет специалист. */

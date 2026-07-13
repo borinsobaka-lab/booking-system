@@ -52,18 +52,20 @@ test('заведение услуги и специалиста', async ({ page 
 
 test('клиентская витрина: три пути записи и никаких ссылок в админку', async ({ page }) => {
   await page.evaluate(() => {
+    const L = (s: string) => ({ en: s, ka: s, ru: s })
     const raw = JSON.parse(localStorage.getItem('booking-db-v1') || '{}')
-    raw.services = [{ id: 's1', name: 'Массаж', description: '', durationMin: 60, price: 3000, image: null, createdAt: 1 }]
+    raw.services = [{ id: 's1', name: L('Massage'), description: L(''), durationMin: 60, price: 3000, image: null, createdAt: 1 }]
     raw.specialists = [
-      { id: 'p1', firstName: 'Нино', lastName: 'Ц.', role: 'Массажист', avatar: null, serviceIds: ['s1'], createdAt: 1 },
+      { id: 'p1', firstName: L('Nino'), lastName: L('T'), role: L('Therapist'), bio: L(''), avatar: null, serviceIds: ['s1'], createdAt: 1 },
     ]
     localStorage.setItem('booking-db-v1', JSON.stringify(raw))
   })
   await page.goto('#/')
-  await expect(page.getByText('Мастер', { exact: true })).toBeVisible()
-  await expect(page.getByText('Выбрать дату', { exact: true })).toBeVisible()
-  await expect(page.getByText('Выбрать услугу', { exact: true })).toBeVisible()
-  // Никаких упоминаний входа сотрудников/админки на витрине
-  await expect(page.getByText(/сотрудник/i)).toHaveCount(0)
+  await page.reload()
+  // По умолчанию интерфейс на английском — три навигационные кнопки
+  await expect(page.getByText('Specialist', { exact: true })).toBeVisible()
+  await expect(page.getByText('Pick a date', { exact: true })).toBeVisible()
+  await expect(page.getByText('Pick a service', { exact: true })).toBeVisible()
+  // Никаких ссылок на админку с витрины
   await expect(page.locator('a[href*="admin"]')).toHaveCount(0)
 })

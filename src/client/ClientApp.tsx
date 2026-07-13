@@ -4,7 +4,7 @@ import { Avatar } from '../ui'
 import { isRemote } from '../config'
 import { enterClient } from '../session'
 import * as remote from '../remote'
-import { useI18n, fmtDuration, fmtPrice, fmtFull, LANGS } from '../i18n'
+import { useI18n, fmtFull, LANGS } from '../i18n'
 import { pick, specialistName } from '../localized'
 import { addMinutes } from '../time'
 import { BookingWizard, type Flow } from './BookingWizard'
@@ -134,7 +134,7 @@ function Banner() {
     >
       <div className="client-banner-overlay">
         <div className="brand-avatar">
-          <Avatar src={brand.avatar} name={name} size={72} />
+          <Avatar src={brand.avatar} name={name} size={96} />
         </div>
         <h1 className="brand-name">{name}</h1>
         {address && <div className="brand-address">📍 {address}</div>}
@@ -160,50 +160,22 @@ function Landing({ configured, onStart }: { configured: boolean; onStart: (flow:
       <p className="landing-lead">{t('landing.lead')}</p>
       <div className="entry-buttons">
         <button className="entry-btn" onClick={() => onStart('master')}>
-          <span className="entry-icon">🧑‍⚕️</span>
+          <span className="entry-icon" aria-hidden />
           <span className="entry-label">{t('entry.master')}</span>
           <span className="entry-sub">{t('entry.master.sub')}</span>
         </button>
         <button className="entry-btn" onClick={() => onStart('date')}>
-          <span className="entry-icon">📅</span>
+          <span className="entry-icon" aria-hidden />
           <span className="entry-label">{t('entry.date')}</span>
           <span className="entry-sub">{t('entry.date.sub')}</span>
         </button>
         <button className="entry-btn" onClick={() => onStart('service')}>
-          <span className="entry-icon">💆</span>
+          <span className="entry-icon" aria-hidden />
           <span className="entry-label">{t('entry.service')}</span>
           <span className="entry-sub">{t('entry.service.sub')}</span>
         </button>
       </div>
-      <ServicesShowcase />
     </div>
-  )
-}
-
-function ServicesShowcase() {
-  const db = useDB()
-  const { lang, t } = useI18n()
-  if (db.services.length === 0) return null
-  return (
-    <section className="showcase">
-      <h3>{t('showcase.title')}</h3>
-      <div className="showcase-grid">
-        {db.services.map((s) => (
-          <div className="showcase-card" key={s.id}>
-            <div className="showcase-img" style={s.image ? { backgroundImage: `url(${s.image})` } : undefined}>
-              {!s.image && <span>💆</span>}
-            </div>
-            <div className="showcase-body">
-              <div className="showcase-title">{pick(s.name, lang)}</div>
-              <div className="showcase-meta">
-                <span>{fmtDuration(s.durationMin, lang)}</span>
-                <span className="showcase-price">{fmtPrice(s.price, lang)}</span>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
   )
 }
 

@@ -134,6 +134,7 @@ export function toPublic(data) {
       firstName: s.firstName,
       lastName: s.lastName,
       role: s.role,
+      bio: s.bio,
       avatar: s.avatar,
       serviceIds: s.serviceIds,
     })),

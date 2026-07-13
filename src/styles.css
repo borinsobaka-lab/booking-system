@@ -985,7 +985,7 @@ textarea {
   padding: 16px;
 }
 .brand-avatar .avatar {
-  border: 3px solid rgba(255, 255, 255, 0.9);
+  border: 1.5px solid rgba(255, 255, 255, 0.9);
 }
 .brand-name {
   font-size: 24px;
@@ -1035,8 +1035,12 @@ textarea {
 }
 .entry-icon {
   grid-row: 1 / 3;
-  font-size: 32px;
-  text-align: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #ececec;
+  align-self: center;
+  justify-self: center;
 }
 .entry-label {
   font-weight: 700;
@@ -1109,11 +1113,16 @@ textarea {
 }
 .wiz-back {
   border: none;
-  background: none;
-  color: var(--accent);
-  font-size: 15px;
-  padding: 4px 0;
+  background: #ececec;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 20px;
   flex: none;
+}
+.wiz-back:hover {
+  background: #e2e2e2;
 }
 .wiz-progress {
   flex: 1;
@@ -1241,6 +1250,177 @@ textarea {
   white-space: nowrap;
 }
 
+/* ===== Специалисты: список во всю ширину + карточка биографии ===== */
+.spec-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.spec-row {
+  display: flex;
+  align-items: stretch;
+  border: 1.5px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--surface);
+}
+.spec-row.unavailable {
+  background: #fafafa;
+}
+.spec-row-main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border: none;
+  background: none;
+  text-align: left;
+  padding: 14px 16px;
+  min-width: 0;
+}
+.spec-row-main:not(:disabled):hover {
+  background: #fafafa;
+}
+.spec-row-info {
+  min-width: 0;
+}
+.spec-row-name {
+  font-weight: 700;
+  font-size: 16px;
+}
+.spec-row-role {
+  color: var(--muted);
+  font-size: 14px;
+  margin-top: 2px;
+}
+.spec-row-badge {
+  font-size: 11px;
+  color: var(--muted);
+  background: #f0f1f4;
+  border-radius: 20px;
+  padding: 2px 8px;
+  display: inline-block;
+  margin-top: 4px;
+}
+.spec-info-btn {
+  flex: none;
+  width: 52px;
+  border: none;
+  border-left: 1.5px solid var(--border);
+  background: none;
+  color: var(--muted);
+  font-size: 17px;
+  font-style: italic;
+  font-weight: 700;
+  font-family: Georgia, 'Times New Roman', serif;
+}
+.spec-info-btn:hover {
+  background: #f4f4f4;
+  color: var(--text);
+}
+.spec-bio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+}
+.spec-bio-name {
+  font-weight: 700;
+  font-size: 20px;
+  margin-top: 8px;
+}
+.spec-bio-role {
+  color: var(--muted);
+}
+.spec-bio-text {
+  text-align: left;
+  align-self: stretch;
+  color: var(--text);
+  line-height: 1.5;
+  margin: 12px 0 18px;
+  white-space: pre-wrap;
+}
+.spec-bio .btn {
+  margin-bottom: 10px;
+}
+
+/* ===== Услуги: карточки во всю ширину с широкой картинкой ===== */
+.svc-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.svc-full {
+  border: 1.5px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--surface);
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.svc-full:hover {
+  border-color: var(--accent);
+}
+.svc-full-img {
+  width: 100%;
+  aspect-ratio: 21 / 8;
+  background: #ececec center/cover no-repeat;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40px;
+}
+.svc-full-body {
+  padding: 14px 16px 16px;
+}
+.svc-full-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.svc-full-title {
+  font-weight: 700;
+  font-size: 18px;
+}
+.svc-full-price {
+  font-weight: 700;
+  font-size: 17px;
+  white-space: nowrap;
+}
+.svc-full-dur {
+  color: var(--muted);
+  font-size: 14px;
+  margin-top: 4px;
+}
+.svc-full-desc {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+  margin-top: 8px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.svc-full-desc.open {
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}
+.svc-full-more {
+  margin-top: 4px;
+  font-weight: 600;
+}
+
+/* ===== Дата и время на одном экране ===== */
+.datetime-slots {
+  margin-top: 18px;
+}
+.datetime-continue {
+  margin-top: 20px;
+}
+
 /* ===== Календарь выбора даты ===== */
 .calendar {
   background: var(--surface);
@@ -1258,7 +1438,7 @@ textarea {
 }
 .cal-weekdays {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 6px;
   margin-bottom: 6px;
 }
@@ -1269,7 +1449,7 @@ textarea {
 }
 .cal-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 6px;
 }
 .cal-cell {

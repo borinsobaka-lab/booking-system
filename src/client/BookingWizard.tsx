@@ -16,19 +16,18 @@ import {
 import type { BookingForm, Service, Specialist } from '../types'
 
 export type Flow = 'master' | 'date' | 'service'
-export type Step = 'specialist' | 'service' | 'date' | 'time' | 'confirm'
+export type Step = 'specialist' | 'service' | 'datetime' | 'confirm'
 
 const FLOWS: Record<Flow, Step[]> = {
-  master: ['specialist', 'service', 'date', 'time', 'confirm'],
-  date: ['date', 'time', 'service', 'specialist', 'confirm'],
-  service: ['service', 'specialist', 'date', 'time', 'confirm'],
+  master: ['specialist', 'service', 'datetime', 'confirm'],
+  date: ['datetime', 'service', 'specialist', 'confirm'],
+  service: ['service', 'specialist', 'datetime', 'confirm'],
 }
 
 const STEP_KEY: Record<Step, string> = {
   specialist: 'step.specialist',
   service: 'step.service',
-  date: 'step.date',
-  time: 'step.time',
+  datetime: 'step.datetime',
   confirm: 'step.confirm',
 }
 
@@ -51,8 +50,7 @@ export function BookingWizard({
   const next = () => setIndex((i) => Math.min(steps.length - 1, i + 1))
   const back = () => {
     if (index === 0) return onExit()
-    const prev = steps[index - 1]
-    clearFrom(prev)
+    clearFrom(steps[index - 1])
     setIndex((i) => i - 1)
   }
   const clearFrom = (fromStep: Step) => {
@@ -61,8 +59,10 @@ export function BookingWizard({
       const n = { ...s }
       if (order.includes('specialist')) delete n.specialistId
       if (order.includes('service')) delete n.serviceId
-      if (order.includes('date')) delete n.date
-      if (order.includes('time')) delete n.start
+      if (order.includes('datetime')) {
+        delete n.date
+        delete n.start
+      }
       return n
     })
   }
@@ -94,8 +94,7 @@ export function BookingWizard({
       <div className="wiz-body">
         {step === 'specialist' && <SpecialistStep sel={sel} onPick={(id) => choose({ specialistId: id })} />}
         {step === 'service' && <ServiceStep sel={sel} onPick={(id) => choose({ serviceId: id })} />}
-        {step === 'date' && <DateStep sel={sel} onPick={(d) => choose({ date: d })} />}
-        {step === 'time' && <TimeStep sel={sel} onPick={(t) => choose({ start: t })} />}
+        {step === 'datetime' && <DateTimeStep sel={sel} onPick={(date, start) => choose({ date, start })} />}
         {step === 'confirm' && <ConfirmStep sel={sel} onBook={onBooked} />}
       </div>
     </div>
@@ -116,41 +115,65 @@ function SelectionSummary({ sel }: { sel: Selection }) {
   return <div className="wiz-summary">{parts.join(' · ')}</div>
 }
 
-// --- Шаг: специалист ---
+// --- Шаг: специалист (список во всю ширину + карточка с биографией) ---
 function SpecialistStep({ sel, onPick }: { sel: Selection; onPick: (id: string) => void }) {
   const db = useDB()
   const { lang, t } = useI18n()
+  const [bioId, setBioId] = useState<string | null>(null)
   const list: Specialist[] = sel.serviceId ? specialistsDoing(sel.serviceId) : db.specialists
   const knowsTime = !!(sel.date && sel.start && sel.serviceId)
+  const isFree = (sp: Specialist) => (knowsTime ? specialistFreeAt(sp.id, sel.serviceId!, sel.date!, sel.start!) : true)
 
   if (list.length === 0) return <Empty text={t('empty.noSpecialists')} />
 
+  // Полная карточка специалиста (биография)
+  const bio = bioId ? list.find((s) => s.id === bioId) : null
+  if (bio) {
+    return (
+      <div className="spec-bio">
+        <Avatar src={bio.avatar} name={specialistName(bio, lang)} size={96} />
+        <div className="spec-bio-name">{specialistName(bio, lang)}</div>
+        <div className="spec-bio-role">{pick(bio.role, lang)}</div>
+        {pick(bio.bio, lang) && <p className="spec-bio-text">{pick(bio.bio, lang)}</p>}
+        <button className="btn btn-primary btn-block btn-lg" disabled={!isFree(bio)} onClick={() => onPick(bio.id)}>
+          {t('specialist.select')}
+        </button>
+        <button className="btn btn-block" onClick={() => setBioId(null)}>
+          {t('specialist.closeBio')}
+        </button>
+      </div>
+    )
+  }
+
   return (
-    <div className="pick-grid">
+    <div className="spec-list">
       {list.map((sp) => {
-        const free = knowsTime ? specialistFreeAt(sp.id, sel.serviceId!, sel.date!, sel.start!) : true
+        const free = isFree(sp)
         return (
-          <button
-            key={sp.id}
-            className={`pick-card spec${free ? '' : ' unavailable'}`}
-            disabled={!free}
-            onClick={() => free && onPick(sp.id)}
-          >
-            <Avatar src={sp.avatar} name={specialistName(sp, lang)} size={72} dim={!free} />
-            <div className="pick-title">{specialistName(sp, lang)}</div>
-            <div className="pick-sub">{pick(sp.role, lang)}</div>
-            {!free && <div className="pick-badge">{t('specialist.busy')}</div>}
-          </button>
+          <div key={sp.id} className={`spec-row${free ? '' : ' unavailable'}`}>
+            <button className="spec-row-main" disabled={!free} onClick={() => free && onPick(sp.id)}>
+              <Avatar src={sp.avatar} name={specialistName(sp, lang)} size={56} dim={!free} />
+              <div className="spec-row-info">
+                <div className="spec-row-name">{specialistName(sp, lang)}</div>
+                <div className="spec-row-role">{pick(sp.role, lang)}</div>
+                {!free && <div className="spec-row-badge">{t('specialist.busy')}</div>}
+              </div>
+            </button>
+            <button className="spec-info-btn" onClick={() => setBioId(sp.id)} aria-label="info" title="info">
+              i
+            </button>
+          </div>
         )
       })}
     </div>
   )
 }
 
-// --- Шаг: услуга ---
+// --- Шаг: услуга (во всю ширину, широкая картинка, описание в 2 строки) ---
 function ServiceStep({ sel, onPick }: { sel: Selection; onPick: (id: string) => void }) {
   const db = useDB()
   const { lang, t } = useI18n()
+  const [expanded, setExpanded] = useState<string | null>(null)
   let list: Service[]
   if (sel.specialistId) list = servicesOf(sel.specialistId)
   else if (sel.date && sel.start) list = servicesBookableAt(sel.date, sel.start)
@@ -159,104 +182,129 @@ function ServiceStep({ sel, onPick }: { sel: Selection; onPick: (id: string) => 
   if (list.length === 0) return <Empty text={t('empty.noServices')} />
 
   return (
-    <div className="svc-list">
-      {list.map((s) => (
-        <button key={s.id} className="svc-row" onClick={() => onPick(s.id)}>
-          <div className="svc-row-img" style={s.image ? { backgroundImage: `url(${s.image})` } : undefined}>
-            {!s.image && <span>💆</span>}
-          </div>
-          <div className="svc-row-main">
-            <div className="svc-row-title">{pick(s.name, lang)}</div>
-            {pick(s.description, lang) && <div className="svc-row-desc">{pick(s.description, lang)}</div>}
-            <div className="svc-row-meta">
-              <span>⏱ {fmtDuration(s.durationMin, lang)}</span>
+    <div className="svc-cards">
+      {list.map((s) => {
+        const desc = pick(s.description, lang)
+        const isOpen = expanded === s.id
+        return (
+          <div key={s.id} className="svc-full" onClick={() => onPick(s.id)}>
+            <div className="svc-full-img" style={s.image ? { backgroundImage: `url(${s.image})` } : undefined}>
+              {!s.image && <span>💆</span>}
+            </div>
+            <div className="svc-full-body">
+              <div className="svc-full-head">
+                <div className="svc-full-title">{pick(s.name, lang)}</div>
+                <div className="svc-full-price">{fmtPrice(s.price, lang)}</div>
+              </div>
+              <div className="svc-full-dur">⏱ {fmtDuration(s.durationMin, lang)}</div>
+              {desc && (
+                <>
+                  <div className={`svc-full-desc${isOpen ? ' open' : ''}`}>{desc}</div>
+                  <button
+                    className="linkbtn svc-full-more"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setExpanded(isOpen ? null : s.id)
+                    }}
+                  >
+                    {isOpen ? t('less') : t('more')}
+                  </button>
+                </>
+              )}
             </div>
           </div>
-          <div className="svc-row-price">{fmtPrice(s.price, lang)}</div>
-        </button>
-      ))}
+        )
+      })}
     </div>
   )
 }
 
-// --- Шаг: дата ---
-function DateStep({ sel, onPick }: { sel: Selection; onPick: (d: string) => void }) {
+// --- Шаг: дата и время (календарь сверху, слоты ниже, кнопка «Продолжить») ---
+function DateTimeStep({ sel, onPick }: { sel: Selection; onPick: (date: string, start: string) => void }) {
   const { lang, t } = useI18n()
   const [month, setMonth] = useState(() => {
     const d = fromDateKey(todayKey())
     return { y: d.getFullYear(), m: d.getMonth() }
   })
+  const [date, setDate] = useState<string | null>(sel.date ?? null)
+  const [start, setStart] = useState<string | null>(sel.start ?? null)
 
   const grid = useMemo(() => buildMonth(month.y, month.m), [month])
   const today = todayKey()
-  const monthLabel = fmtMonthYear(month.y, month.m, lang)
   const weekdays = useMemo(() => weekdayHeaders(lang), [lang])
+  const times = useMemo(() => (date ? startsFor(date, sel) : []), [date, sel])
 
   const shift = (delta: number) => {
     const d = new Date(month.y, month.m + delta, 1)
     setMonth({ y: d.getFullYear(), m: d.getMonth() })
   }
+  const chooseDate = (d: string) => {
+    setDate(d)
+    setStart(null)
+  }
 
   return (
-    <div className="calendar">
-      <div className="cal-head">
-        <button className="iconbtn" onClick={() => shift(-1)}>
-          ‹
-        </button>
-        <div className="cal-month">{monthLabel}</div>
-        <button className="iconbtn" onClick={() => shift(1)}>
-          ›
-        </button>
-      </div>
-      <div className="cal-weekdays">
-        {weekdays.map((w, i) => (
-          <div key={i}>{w}</div>
-        ))}
-      </div>
-      <div className="cal-grid">
-        {grid.map((cell, i) => {
-          if (!cell) return <div key={i} className="cal-cell empty" />
-          const past = cell < today
-          const avail = !past && dayAvailable(cell, sel)
-          const d = fromDateKey(cell)
-          return (
-            <button
-              key={i}
-              className={`cal-cell${avail ? ' available' : ''}${cell === today ? ' today' : ''}${sel.date === cell ? ' selected' : ''}`}
-              disabled={!avail}
-              onClick={() => onPick(cell)}
-            >
-              {d.getDate()}
-              {avail && <span className="cal-dot" />}
-            </button>
-          )
-        })}
-      </div>
-      <div className="cal-legend">
-        <span>
-          <span className="cal-dot" /> {t('cal.available')}
-        </span>
-      </div>
-    </div>
-  )
-}
-
-// --- Шаг: время ---
-function TimeStep({ sel, onPick }: { sel: Selection; onPick: (t: string) => void }) {
-  const { lang, t } = useI18n()
-  const times = useMemo(() => (sel.date ? startsFor(sel.date, sel) : []), [sel])
-  if (!sel.date) return <Empty text={t('empty.pickDate')} />
-  if (times.length === 0) return <Empty text={t('empty.noTime')} />
-  return (
-    <div>
-      <div className="time-day muted">{fmtFull(sel.date, lang)}</div>
-      <div className="slot-grid big">
-        {times.map((time) => (
-          <button key={time} className={`slot${sel.start === time ? ' active' : ''}`} onClick={() => onPick(time)}>
-            {time}
+    <div className="datetime">
+      <div className="calendar">
+        <div className="cal-head">
+          <button className="iconbtn" onClick={() => shift(-1)}>
+            ‹
           </button>
-        ))}
+          <div className="cal-month">{fmtMonthYear(month.y, month.m, lang)}</div>
+          <button className="iconbtn" onClick={() => shift(1)}>
+            ›
+          </button>
+        </div>
+        <div className="cal-weekdays">
+          {weekdays.map((w, i) => (
+            <div key={i}>{w}</div>
+          ))}
+        </div>
+        <div className="cal-grid">
+          {grid.map((cell, i) => {
+            if (!cell) return <div key={i} className="cal-cell empty" />
+            const past = cell < today
+            const avail = !past && dayAvailable(cell, sel)
+            const d = fromDateKey(cell)
+            return (
+              <button
+                key={i}
+                className={`cal-cell${avail ? ' available' : ''}${cell === today ? ' today' : ''}${date === cell ? ' selected' : ''}`}
+                disabled={!avail}
+                onClick={() => chooseDate(cell)}
+              >
+                {d.getDate()}
+                {avail && <span className="cal-dot" />}
+              </button>
+            )
+          })}
+        </div>
       </div>
+
+      {date && (
+        <div className="datetime-slots">
+          <div className="time-day muted">{fmtFull(date, lang)}</div>
+          {times.length === 0 ? (
+            <div className="wiz-empty muted">{t('empty.noTime')}</div>
+          ) : (
+            <div className="slot-grid big">
+              {times.map((time) => (
+                <button key={time} className={`slot${start === time ? ' active' : ''}`} onClick={() => setStart(time)}>
+                  {time}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {date && start && (
+        <div className="datetime-continue">
+          <button className="btn btn-primary btn-block btn-lg" onClick={() => onPick(date, start)}>
+            {t('continue')}
+          </button>
+        </div>
+      )}
     </div>
   )
 }

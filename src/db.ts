@@ -41,6 +41,7 @@ function migrateContent(db: DB): DB {
     firstName: toLoc(sp.firstName),
     lastName: toLoc(sp.lastName),
     role: toLoc(sp.role),
+    bio: toLoc(sp.bio),
   }))
   return db
 }
