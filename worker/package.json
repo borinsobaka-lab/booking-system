@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
+    "build": "echo \"Worker без сборки — деплой командой: npx wrangler deploy\"",
     "test": "node --test",
     "mock": "node mock-server.mjs",
     "deploy": "wrangler deploy"
