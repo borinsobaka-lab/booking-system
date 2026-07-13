@@ -27,8 +27,20 @@ export class GitHubStore {
   }
 
   /** Прочитать data.json. Если файла нет — вернуть пустые данные и sha=null. */
+  /** fetch с повтором при временных ошибках GitHub (502/503/504). */
+  async fetchRetry(url, opts, attempts = 4) {
+    let res
+    for (let i = 0; i < attempts; i++) {
+      res = await fetch(url, opts)
+      if (res.status < 500) return res
+      // Временный сбой шлюза GitHub — ждём и пробуем снова.
+      if (i < attempts - 1) await new Promise((r) => setTimeout(r, 400 * (i + 1)))
+    }
+    return res
+  }
+
   async get() {
-    const res = await fetch(`${this.url()}?ref=${encodeURIComponent(this.branch)}`, { headers: this.headers() })
+    const res = await this.fetchRetry(`${this.url()}?ref=${encodeURIComponent(this.branch)}`, { headers: this.headers() })
     if (res.status === 404) return { data: emptyData(), sha: null }
     if (!res.ok) throw new Error(`GitHub get ${res.status}: ${await res.text()}`)
     const json = await res.json()
@@ -50,7 +62,7 @@ export class GitHubStore {
       branch: this.branch,
     }
     if (sha) body.sha = sha
-    const res = await fetch(this.url(), {
+    const res = await this.fetchRetry(this.url(), {
       method: 'PUT',
       headers: { ...this.headers(), 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
