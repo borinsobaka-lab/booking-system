@@ -153,6 +153,7 @@ export async function handle(request, env, deps) {
         next.specialists = incoming.specialists ?? current.specialists
         next.schedules = incoming.schedules ?? current.schedules
         next.bookings = incoming.bookings ?? current.bookings
+        next.reviews = incoming.reviews ?? current.reviews
 
         // Пользователей меняет только суперадминистратор. Секреты (salt/hash)
         // подтягиваем из текущих данных, если браузер их не прислал.
