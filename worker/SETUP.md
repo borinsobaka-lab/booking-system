@@ -44,10 +44,24 @@ node seed-owner.mjs <логин> <пароль> "Ваше имя" > data.json
 
 ## 4. Деплой Worker
 
-Нужен аккаунт Cloudflare и `wrangler` (`npm i -g wrangler`, затем `wrangler login`).
+> **Где код Worker'а?** Он уже написан и лежит в ЭТОМ репозитории (`booking-system`)
+> в папке **`worker/`**: точка входа `worker.js`, логика `src/api.js` / `src/store.js`
+> / `src/logic.js`, конфиг `wrangler.toml`. Писать с нуля ничего не нужно.
+>
+> **Мастер «Create Worker» в дашборде Cloudflare не используем** — там нет нашей
+> папки `worker/`. Деплой идёт из кода одним из способов ниже.
+
+### Способ A (рекомендуется) — из командной строки, `wrangler`
+
+`wrangler deploy` сам создаёт Worker `booking-api` и заливает код — предварительно
+создавать приложение в дашборде не нужно.
 
 ```bash
-cd worker
+git clone https://github.com/borinsobaka-lab/booking-system
+cd booking-system/worker
+
+npm i -g wrangler
+wrangler login
 
 # Проверьте wrangler.toml: DATA_REPO и CORS_ORIGIN должны соответствовать вашим
 # (по умолчанию: borinsobaka-lab/booking-system-data и
@@ -62,6 +76,18 @@ wrangler deploy
 
 После деплоя получите адрес Worker, например
 `https://booking-api.<ваш-субдомен>.workers.dev`.
+
+### Способ B — через дашборд, «Connect GitHub»
+
+Если удобнее деплоить из GitHub (Workers Builds):
+1. **Connect GitHub** → выберите репозиторий `borinsobaka-lab/booking-system`.
+2. В настройках сборки укажите **Root directory = `worker`** (наш `wrangler.toml`
+   лежит в подпапке, а не в корне репозитория). Build command можно оставить
+   пустым, deploy command — `npx wrangler deploy`.
+3. Секреты **DATA_TOKEN** и **SESSION_SECRET** добавьте в дашборде:
+   *Worker → Settings → Variables and Secrets* (тип Secret).
+
+Оба способа дают один и тот же результат. Проще — способ A.
 
 ## 5. Подключить витрину к Worker
 
