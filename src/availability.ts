@@ -6,7 +6,7 @@ import { addMinutes, overlaps, toMinutes } from './time'
 import type { Booking, DaySchedule, Service, Specialist, TimeRange } from './types'
 
 /** Шаг сетки слотов (минуты). */
-export const SLOT_STEP = 15
+export const SLOT_STEP = 30
 
 export interface Slot {
   start: string

@@ -8,7 +8,7 @@ import { useI18n, fmtFull, LANGS } from '../i18n'
 import { pick, specialistName } from '../localized'
 import { addMinutes } from '../time'
 import { BookingWizard, type Flow } from './BookingWizard'
-import type { Booking, BookingForm } from '../types'
+import type { Booking, BookingForm, Lang } from '../types'
 
 type Screen =
   | { kind: 'landing' }
@@ -115,15 +115,13 @@ function LangSwitcher() {
   const { lang, setLang } = useI18n()
   return (
     <div className="lang-switcher">
-      {LANGS.map((l) => (
-        <button
-          key={l.code}
-          className={`lang-btn${lang === l.code ? ' active' : ''}`}
-          onClick={() => setLang(l.code)}
-        >
-          {l.label}
-        </button>
-      ))}
+      <select className="lang-select" value={lang} onChange={(e) => setLang(e.target.value as Lang)} aria-label="Language">
+        {LANGS.map((l) => (
+          <option key={l.code} value={l.code}>
+            {l.full}
+          </option>
+        ))}
+      </select>
     </div>
   )
 }

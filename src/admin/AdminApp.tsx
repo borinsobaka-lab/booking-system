@@ -10,15 +10,17 @@ import { SpecialistsPage } from './SpecialistsPage'
 import { SchedulePage } from './SchedulePage'
 import { UsersPage } from './UsersPage'
 import { SettingsPage } from './SettingsPage'
+import { ReviewsPage } from './ReviewsPage'
 import { Avatar } from '../ui'
 
-type Tab = 'bookings' | 'services' | 'specialists' | 'schedule' | 'users' | 'settings'
+type Tab = 'bookings' | 'services' | 'specialists' | 'schedule' | 'reviews' | 'users' | 'settings'
 
 const TABS: { id: Tab; path: string; label: string; icon: string; ownerOnly?: boolean }[] = [
   { id: 'bookings', path: ADMIN_BASE, label: 'Записи', icon: '📅' },
   { id: 'schedule', path: `${ADMIN_BASE}/schedule`, label: 'Расписание', icon: '🗓️' },
   { id: 'services', path: `${ADMIN_BASE}/services`, label: 'Услуги', icon: '💆' },
   { id: 'specialists', path: `${ADMIN_BASE}/specialists`, label: 'Специалисты', icon: '🧑‍⚕️' },
+  { id: 'reviews', path: `${ADMIN_BASE}/reviews`, label: 'Отзывы', icon: '💬' },
   { id: 'users', path: `${ADMIN_BASE}/users`, label: 'Пользователи', icon: '🔑', ownerOnly: true },
   { id: 'settings', path: `${ADMIN_BASE}/settings`, label: 'Бренд', icon: '🏷️', ownerOnly: true },
 ]
@@ -27,6 +29,7 @@ function tabForPath(path: string): Tab {
   if (path.startsWith(`${ADMIN_BASE}/services`)) return 'services'
   if (path.startsWith(`${ADMIN_BASE}/specialists`)) return 'specialists'
   if (path.startsWith(`${ADMIN_BASE}/schedule`)) return 'schedule'
+  if (path.startsWith(`${ADMIN_BASE}/reviews`)) return 'reviews'
   if (path.startsWith(`${ADMIN_BASE}/users`)) return 'users'
   if (path.startsWith(`${ADMIN_BASE}/settings`)) return 'settings'
   return 'bookings'
@@ -109,6 +112,7 @@ export function AdminApp({ path }: { path: string }) {
         {tab === 'schedule' && <SchedulePage />}
         {tab === 'services' && <ServicesPage />}
         {tab === 'specialists' && <SpecialistsPage />}
+        {tab === 'reviews' && <ReviewsPage />}
         {tab === 'users' && (canManageUsers ? <UsersPage /> : <NoAccess />)}
         {tab === 'settings' && (canManageUsers ? <SettingsPage /> : <NoAccess />)}
       </main>

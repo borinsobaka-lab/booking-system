@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
-import { useDB } from '../db'
-import { Avatar } from '../ui'
-import { useI18n, fmtDuration, fmtPrice, fmtFull, fmtMonthYear, weekdayHeaders } from '../i18n'
+import { useDB, ratingOf } from '../db'
+import { Avatar, Stars } from '../ui'
+import { RichTextView } from '../RichText'
+import { useI18n, fmtDuration, fmtPrice, fmtFull, fmtMonthYear, weekdayHeaders, fmtReviewCount } from '../i18n'
 import { pick, specialistName } from '../localized'
 import { addMinutes, fromDateKey, toDateKey, todayKey } from '../time'
 import {
@@ -150,21 +151,26 @@ function SpecialistStep({ sel, onPick }: { sel: Selection; onPick: (id: string) 
 
   if (list.length === 0) return <Empty text={t('empty.noSpecialists')} />
 
-  // Полная карточка специалиста (биография)
+  // Полная карточка специалиста (биография + отзывы)
   const bio = bioId ? list.find((s) => s.id === bioId) : null
   if (bio) {
+    const rating = ratingOf(db.reviews, bio.id)
     return (
       <div className="spec-bio">
         <Avatar src={bio.avatar} name={specialistName(bio, lang)} size={96} />
         <div className="spec-bio-name">{specialistName(bio, lang)}</div>
         <div className="spec-bio-role">{pick(bio.role, lang)}</div>
-        {pick(bio.bio, lang) && <p className="spec-bio-text">{pick(bio.bio, lang)}</p>}
-        <button className="btn btn-primary btn-block btn-lg" disabled={!isFree(bio)} onClick={() => onPick(bio.id)}>
-          {t('specialist.select')}
-        </button>
-        <button className="btn btn-block" onClick={() => setBioId(null)}>
-          {t('specialist.closeBio')}
-        </button>
+        <RatingLine avg={rating.avg} count={rating.count} center />
+        {pick(bio.bio, lang) && <RichTextView className="spec-bio-text" html={pick(bio.bio, lang)} />}
+        <ReviewsList specialistId={bio.id} />
+        <div className="wiz-footer">
+          <button className="btn btn-primary btn-block btn-lg" disabled={!isFree(bio)} onClick={() => onPick(bio.id)}>
+            {t('specialist.select')}
+          </button>
+          <button className="btn btn-block" onClick={() => setBioId(null)}>
+            {t('specialist.closeBio')}
+          </button>
+        </div>
       </div>
     )
   }
@@ -173,6 +179,7 @@ function SpecialistStep({ sel, onPick }: { sel: Selection; onPick: (id: string) 
     <div className="spec-list">
       {list.map((sp) => {
         const free = isFree(sp)
+        const rating = ratingOf(db.reviews, sp.id)
         return (
           <div key={sp.id} className={`spec-row${free ? '' : ' unavailable'}`}>
             <button className="spec-row-main" disabled={!free} onClick={() => free && onPick(sp.id)}>
@@ -180,6 +187,7 @@ function SpecialistStep({ sel, onPick }: { sel: Selection; onPick: (id: string) 
               <div className="spec-row-info">
                 <div className="spec-row-name">{specialistName(sp, lang)}</div>
                 <div className="spec-row-role">{pick(sp.role, lang)}</div>
+                <RatingLine avg={rating.avg} count={rating.count} />
                 {!free && <div className="spec-row-badge">{t('specialist.busy')}</div>}
               </div>
             </button>
@@ -189,6 +197,45 @@ function SpecialistStep({ sel, onPick }: { sel: Selection; onPick: (id: string) 
           </div>
         )
       })}
+    </div>
+  )
+}
+
+/** Звёзды + число отзывов (или «нет отзывов»). */
+function RatingLine({ avg, count, center }: { avg: number; count: number; center?: boolean }) {
+  const { lang, t } = useI18n()
+  return (
+    <div className={`rating-line${center ? ' center' : ''}`}>
+      <Stars value={avg} size={14} />
+      <span className="rating-count">{count > 0 ? fmtReviewCount(count, lang) : t('reviews.new')}</span>
+    </div>
+  )
+}
+
+/** Список отзывов о специалисте. */
+function ReviewsList({ specialistId }: { specialistId: string }) {
+  const db = useDB()
+  const { lang, t } = useI18n()
+  const reviews = db.reviews
+    .filter((r) => r.specialistId === specialistId)
+    .sort((a, b) => (a.date < b.date ? 1 : -1))
+  if (reviews.length === 0) return null
+  return (
+    <div className="reviews">
+      <h4 className="reviews-title">{t('reviews.title')}</h4>
+      {reviews.map((r) => (
+        <div className="review-item" key={r.id}>
+          <Avatar src={r.avatar} name={r.authorName} size={40} />
+          <div className="review-item-body">
+            <div className="review-item-head">
+              <b>{r.authorName}</b>
+              <span className="review-item-date">{fmtFull(r.date, lang)}</span>
+            </div>
+            <Stars value={r.rating} size={13} />
+            {r.text && <div className="review-item-text">{r.text}</div>}
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
@@ -323,7 +370,7 @@ function DateTimeStep({ sel, onPick }: { sel: Selection; onPick: (date: string, 
       )}
 
       {date && start && (
-        <div className="datetime-continue">
+        <div className="wiz-footer">
           <button className="btn btn-primary btn-block btn-lg" onClick={() => onPick(date, start)}>
             {t('continue')}
           </button>
@@ -418,26 +465,28 @@ function ConfirmStep({
         <span>{t('form.consent')}</span>
       </label>
 
-      <button
-        className="btn btn-primary btn-block btn-lg"
-        disabled={!canBook}
-        onClick={() =>
-          canBook &&
-          onBook({
-            serviceId: sel.serviceId!,
-            specialistId: sel.specialistId!,
-            date: sel.date!,
-            start: sel.start!,
-            clientName: form.clientName.trim(),
-            clientPhone: form.clientPhone.trim(),
-            clientEmail: form.clientEmail.trim(),
-            comment: form.comment.trim(),
-            consent: form.consent,
-          })
-        }
-      >
-        {t('form.book')}
-      </button>
+      <div className="wiz-footer">
+        <button
+          className="btn btn-primary btn-block btn-lg"
+          disabled={!canBook}
+          onClick={() =>
+            canBook &&
+            onBook({
+              serviceId: sel.serviceId!,
+              specialistId: sel.specialistId!,
+              date: sel.date!,
+              start: sel.start!,
+              clientName: form.clientName.trim(),
+              clientPhone: form.clientPhone.trim(),
+              clientEmail: form.clientEmail.trim(),
+              comment: form.comment.trim(),
+              consent: form.consent,
+            })
+          }
+        >
+          {t('form.book')}
+        </button>
+      </div>
     </div>
   )
 }

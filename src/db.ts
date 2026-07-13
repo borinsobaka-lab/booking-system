@@ -5,7 +5,7 @@
 import { useSyncExternalStore } from 'react'
 import { isRemote } from './config'
 import { toLoc } from './localized'
-import type { Booking, Brand, DaySchedule, DB, Service, Specialist, User } from './types'
+import type { Booking, Brand, DaySchedule, DB, Review, Service, Specialist, User } from './types'
 
 const STORAGE_KEY = 'booking-db-v1'
 
@@ -55,6 +55,7 @@ function emptyDB(): DB {
     specialists: [],
     schedules: [],
     bookings: [],
+    reviews: [],
   }
 }
 
@@ -224,9 +225,34 @@ export function deleteSpecialist(id: string): void {
     db.specialists = db.specialists.filter((s) => s.id !== id)
     db.schedules = db.schedules.filter((s) => s.specialistId !== id)
     db.bookings = db.bookings.filter((b) => b.specialistId !== id)
+    db.reviews = db.reviews.filter((r) => r.specialistId !== id)
     // Отвязываем от пользователей-мастеров.
     for (const u of db.users) if (u.specialistId === id) u.specialistId = undefined
   })
+}
+
+// --- Мутации: отзывы ---
+
+export function saveReview(r: Review): void {
+  mutate((db) => {
+    const i = db.reviews.findIndex((x) => x.id === r.id)
+    if (i >= 0) db.reviews[i] = r
+    else db.reviews.push(r)
+  })
+}
+
+export function deleteReview(id: string): void {
+  mutate((db) => {
+    db.reviews = db.reviews.filter((r) => r.id !== id)
+  })
+}
+
+/** Рейтинг специалиста: средняя оценка и число отзывов. */
+export function ratingOf(reviews: Review[], specialistId: string): { avg: number; count: number } {
+  const rs = reviews.filter((r) => r.specialistId === specialistId)
+  if (rs.length === 0) return { avg: 0, count: 0 }
+  const sum = rs.reduce((a, r) => a + r.rating, 0)
+  return { avg: sum / rs.length, count: rs.length }
 }
 
 // --- Мутации: расписание ---

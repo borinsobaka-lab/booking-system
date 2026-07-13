@@ -146,6 +146,16 @@ export function toPublic(data) {
       start: b.start,
       end: b.end,
     })),
+    // Отзывы — публичные (витрина показывает их и рейтинг у специалиста).
+    reviews: (data.reviews || []).map((r) => ({
+      id: r.id,
+      specialistId: r.specialistId,
+      authorName: r.authorName,
+      rating: r.rating,
+      text: r.text,
+      date: r.date,
+      avatar: r.avatar,
+    })),
   }
 }
 
@@ -170,6 +180,7 @@ export function emptyData() {
     specialists: [],
     schedules: [],
     bookings: [],
+    reviews: [],
   }
 }
 

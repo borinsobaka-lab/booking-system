@@ -108,5 +108,6 @@ export function publicToDB(pub: any): DB {
       status: 'confirmed' as const,
       createdAt: 0,
     })),
+    reviews: (pub.reviews ?? []).map((r: any) => ({ ...r, avatar: r.avatar ?? null, createdAt: 0 })),
   }
 }

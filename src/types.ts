@@ -115,6 +115,23 @@ export interface BookingForm {
   consent: boolean
 }
 
+/** Отзыв о специалисте (пока заводится в админке; позже — клиентами после сессии). */
+export interface Review {
+  id: ID
+  specialistId: ID
+  /** Имя автора отзыва. */
+  authorName: string
+  /** Оценка 1–5. */
+  rating: number
+  /** Текст отзыва (может быть пустым). */
+  text: string
+  /** 'YYYY-MM-DD'. */
+  date: string
+  /** data-URL аватарки автора. Нет — показываем первую букву имени. */
+  avatar: string | null
+  createdAt: number
+}
+
 export interface DB {
   version: number
   users: User[]
@@ -123,4 +140,5 @@ export interface DB {
   specialists: Specialist[]
   schedules: DaySchedule[]
   bookings: Booking[]
+  reviews: Review[]
 }

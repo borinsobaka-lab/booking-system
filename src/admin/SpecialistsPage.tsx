@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useDB, saveSpecialist, deleteSpecialist, uid } from '../db'
 import { Avatar, Field, ImagePicker, Modal, LangTabs, setLoc } from '../ui'
+import { RichTextEditor } from '../RichText'
 import { pick, specialistName, emptyLoc } from '../localized'
 import type { Lang, Specialist } from '../types'
 
@@ -120,14 +121,15 @@ function SpecialistEditor({ specialist, onClose }: { specialist: Specialist; onC
             placeholder="Например, Массажист"
           />
         </Field>
-        <Field label="Биография (показывается клиенту в карточке)">
-          <textarea
+        <div className="field">
+          <span className="field-label">Биография (показывается клиенту в карточке)</span>
+          <RichTextEditor
+            key={lang}
             value={sp.bio[lang]}
-            onChange={(e) => set('bio', setLoc(sp.bio, lang, e.target.value))}
-            rows={4}
+            onChange={(html) => set('bio', setLoc(sp.bio, lang, html))}
             placeholder="Опыт, образование, подход к работе…"
           />
-        </Field>
+        </div>
         <div className="field">
           <span className="field-label">Выполняемые услуги</span>
           {db.services.length === 0 ? (

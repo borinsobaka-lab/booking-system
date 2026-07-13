@@ -27,6 +27,19 @@ export function setLoc(v: LocalizedString, lang: Lang, val: string): LocalizedSt
   return { ...v, [lang]: val }
 }
 
+/** Звёзды рейтинга: серые незаполненные, жёлтые по значению value (0..5). */
+export function Stars({ value, size = 15 }: { value: number; size?: number }) {
+  const pct = Math.max(0, Math.min(100, (value / 5) * 100))
+  return (
+    <span className="stars" style={{ fontSize: size }} aria-label={`${value.toFixed(1)} / 5`}>
+      <span className="stars-empty">★★★★★</span>
+      <span className="stars-full" style={{ width: `${pct}%` }}>
+        ★★★★★
+      </span>
+    </span>
+  )
+}
+
 /** Читает выбранный файл-картинку в data-URL (с даунскейлом до maxSize px). */
 export function readImageFile(file: File, maxSize = 800): Promise<string> {
   return new Promise((resolve, reject) => {

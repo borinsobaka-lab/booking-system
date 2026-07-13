@@ -8,10 +8,10 @@ import type { Lang } from './types'
 export const DEFAULT_LANG: Lang = 'en'
 const STORAGE_KEY = 'booking-lang'
 
-export const LANGS: { code: Lang; label: string }[] = [
-  { code: 'en', label: 'EN' },
-  { code: 'ka', label: 'ქარ' },
-  { code: 'ru', label: 'RUS' },
+export const LANGS: { code: Lang; label: string; full: string }[] = [
+  { code: 'en', label: 'EN', full: 'English' },
+  { code: 'ka', label: 'ქარ', full: 'ქართული' },
+  { code: 'ru', label: 'RUS', full: 'Русский' },
 ]
 
 function localeFor(lang: Lang): string {
@@ -121,6 +121,9 @@ const DICT: Dict = {
     ru: 'Запись подтверждена автоматически.',
   },
   'done.again': { en: 'Book again', ka: 'ხელახლა დაჯავშნა', ru: 'Записаться ещё раз' },
+  'reviews.title': { en: 'Reviews', ka: 'შეფასებები', ru: 'Отзывы' },
+  'reviews.none': { en: 'No reviews yet', ka: 'ჯერ არ არის შეფასებები', ru: 'Пока нет отзывов' },
+  'reviews.new': { en: 'No reviews', ka: 'შეფასებები არ არის', ru: 'Нет отзывов' },
   'error.booking': {
     en: 'Could not create the booking. Try another time.',
     ka: 'ჯავშნის შექმნა ვერ მოხერხდა. სცადეთ სხვა დრო.',
@@ -141,20 +144,53 @@ export function fmtPrice(v: number, lang: Lang): string {
   return `${new Intl.NumberFormat(localeFor(lang)).format(v)} ₾`
 }
 
+/** «3 reviews / 3 отзыва / 3 შეფასება» рядом со звёздами. */
+export function fmtReviewCount(n: number, lang: Lang): string {
+  if (lang === 'en') return `${n} review${n === 1 ? '' : 's'}`
+  if (lang === 'ka') return `${n} შეფასება`
+  const m10 = n % 10
+  const m100 = n % 100
+  const word = m10 === 1 && m100 !== 11 ? 'отзыв' : m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20) ? 'отзыва' : 'отзывов'
+  return `${n} ${word}`
+}
+
+// Локализация дат вручную (надёжнее Intl: грузинский всегда переводится).
+const MONTHS: Record<Lang, string[]> = {
+  en: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
+  ka: ['იანვარი', 'თებერვალი', 'მარტი', 'აპრილი', 'მაისი', 'ივნისი', 'ივლისი', 'აგვისტო', 'სექტემბერი', 'ოქტომბერი', 'ნოემბერი', 'დეკემბერი'],
+  ru: ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'],
+}
+// Родительный падеж для «13 <месяца>» (важно для русского).
+const MONTHS_GEN: Record<Lang, string[]> = {
+  en: MONTHS.en,
+  ka: MONTHS.ka,
+  ru: ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'],
+}
+// Дни недели, начиная с понедельника (для заголовков календаря).
+const WEEKDAYS_SHORT: Record<Lang, string[]> = {
+  en: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+  ka: ['ორშ', 'სამ', 'ოთხ', 'ხუთ', 'პარ', 'შაბ', 'კვი'],
+  ru: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'],
+}
+// Полные названия дней, индекс = Date.getDay() (0 = воскресенье).
+const WEEKDAYS_LONG: Record<Lang, string[]> = {
+  en: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+  ka: ['კვირა', 'ორშაბათი', 'სამშაბათი', 'ოთხშაბათი', 'ხუთშაბათი', 'პარასკევი', 'შაბათი'],
+  ru: ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'],
+}
+
 export function fmtFull(dateKey: string, lang: Lang): string {
   const d = fromDateKey(dateKey)
-  return new Intl.DateTimeFormat(localeFor(lang), { weekday: 'long', day: 'numeric', month: 'long' }).format(d)
+  return `${WEEKDAYS_LONG[lang][d.getDay()]}, ${d.getDate()} ${MONTHS_GEN[lang][d.getMonth()]}`
 }
 
 export function fmtMonthYear(year: number, month: number, lang: Lang): string {
-  return new Intl.DateTimeFormat(localeFor(lang), { month: 'long', year: 'numeric' }).format(new Date(year, month, 1))
+  return `${MONTHS[lang][month]} ${year}`
 }
 
 /** Короткие заголовки дней недели Пн…Вс на языке. */
 export function weekdayHeaders(lang: Lang): string[] {
-  const fmt = new Intl.DateTimeFormat(localeFor(lang), { weekday: 'short' })
-  // 2024-01-01 — понедельник
-  return Array.from({ length: 7 }, (_, i) => fmt.format(new Date(2024, 0, 1 + i)))
+  return WEEKDAYS_SHORT[lang]
 }
 
 // --- Контекст ---
