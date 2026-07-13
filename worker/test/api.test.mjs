@@ -63,24 +63,12 @@ async function seededStore() {
   return makeStore(data)
 }
 
-test('status: пустое хранилище — суперадмина нет', async () => {
+test('регистрации нет: /api/auth/setup и /api/status недоступны', async () => {
   const store = makeStore()
-  const r = await call(store, 'GET', '/api/status')
-  assert.equal(r.status, 200)
-  assert.equal(r.body.hasOwner, false)
-})
-
-test('setup: создаёт владельца, повторно — 409', async () => {
-  const store = makeStore()
-  const salt = 'abc'
-  const passwordHash = await hashPassword('secret', salt)
-  const r1 = await call(store, 'POST', '/api/auth/setup', { body: { username: 'boss', salt, passwordHash, name: 'Босс' } })
-  assert.equal(r1.status, 200)
-  assert.ok(r1.body.token)
-  const st = await call(store, 'GET', '/api/status')
-  assert.equal(st.body.hasOwner, true)
-  const r2 = await call(store, 'POST', '/api/auth/setup', { body: { username: 'x', salt, passwordHash } })
-  assert.equal(r2.status, 409)
+  const setup = await call(store, 'POST', '/api/auth/setup', { body: { username: 'x', salt: 's', passwordHash: 'h' } })
+  assert.equal(setup.status, 404)
+  const status = await call(store, 'GET', '/api/status')
+  assert.equal(status.status, 404)
 })
 
 test('login: верный пароль — токен, неверный — 401', async () => {

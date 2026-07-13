@@ -3,7 +3,6 @@ import { useAuth, roleLabel } from '../auth'
 import { navigate, ADMIN_BASE } from '../router'
 import { isRemote } from '../config'
 import { enterAdmin, stopPersisting } from '../session'
-import { SetupScreen } from './SetupScreen'
 import { LoginScreen } from './LoginScreen'
 import { BookingsPage } from './BookingsPage'
 import { ServicesPage } from './ServicesPage'
@@ -34,7 +33,7 @@ function tabForPath(path: string): Tab {
 }
 
 export function AdminApp({ path }: { path: string }) {
-  const { user, ownerExists, ready, logout, canManageUsers } = useAuth()
+  const { user, ready, logout, canManageUsers } = useAuth()
 
   // remote-режим: подгрузить полные данные и включить сохранение на сервер,
   // когда сотрудник авторизован (в т.ч. при возврате в админку с витрины).
@@ -61,7 +60,8 @@ export function AdminApp({ path }: { path: string }) {
   }
 
   if (!ready) return <AdminLoading />
-  if (!ownerExists) return <SetupScreen />
+  // Регистрации нет: если не авторизован — только вход. Суперадминистратор
+  // заводится вручную (worker/seed-owner.mjs), сотрудники — внутри панели.
   if (!user) return <LoginScreen />
   if (!dataReady) return <AdminLoading />
 

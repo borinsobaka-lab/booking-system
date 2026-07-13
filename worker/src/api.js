@@ -53,12 +53,6 @@ export async function handle(request, env, deps) {
   if (method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders(env, request) })
 
   try {
-    // --- Статус: есть ли суперадминистратор (нужна ли первичная настройка) ---
-    if (path === '/api/status' && method === 'GET') {
-      const { data } = await store.get()
-      return json({ hasOwner: (data.users || []).some((u) => u.role === 'owner') }, 200, env, request)
-    }
-
     // --- Публичные данные для витрины (без персональных данных) ---
     if (path === '/api/public' && method === 'GET') {
       const { data } = await store.get()
@@ -111,36 +105,7 @@ export async function handle(request, env, deps) {
       return json({ ok: true, booking: created }, 200, env, request)
     }
 
-    // --- Первичная настройка суперадминистратора ---
-    if (path === '/api/auth/setup' && method === 'POST') {
-      const b = await request.json().catch(() => null)
-      if (!b || !b.username || !b.salt || !b.passwordHash)
-        return json({ error: 'Заполните данные' }, 400, env, request)
-      let owner = null
-      let already = false
-      await store.update((data) => {
-        if ((data.users || []).some((u) => u.role === 'owner')) {
-          already = true
-          return null
-        }
-        owner = {
-          id: uid(now(), rnd()),
-          role: 'owner',
-          username: String(b.username).trim(),
-          salt: b.salt,
-          passwordHash: b.passwordHash,
-          name: (b.name && String(b.name).trim()) || 'Администратор',
-          createdAt: now(),
-        }
-        data.users.push(owner)
-        return data
-      }, 'auth: create owner')
-      if (already) return json({ error: 'Суперадминистратор уже создан' }, 409, env, request)
-      const token = await signSession(env.SESSION_SECRET, { userId: owner.id, role: 'owner' }, now())
-      return json({ token, user: { id: owner.id, name: owner.name, role: 'owner' } }, 200, env, request)
-    }
-
-    // --- Вход сотрудника ---
+    // --- Вход сотрудника (регистрации/создания владельца через API НЕТ) ---
     if (path === '/api/auth/login' && method === 'POST') {
       const b = await request.json().catch(() => null)
       if (!b || !b.username || !b.password) return json({ error: 'Введите логин и пароль' }, 400, env, request)

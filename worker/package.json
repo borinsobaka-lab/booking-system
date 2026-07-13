@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "test": "node --test",
-    "mock": "node test/mock-server.mjs",
+    "mock": "node mock-server.mjs",
     "deploy": "wrangler deploy"
   }
 }

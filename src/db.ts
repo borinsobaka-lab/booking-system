@@ -3,9 +3,24 @@
 // сервера. Позже адаптер можно заменить на настоящий бэкенд, не трогая UI.
 
 import { useSyncExternalStore } from 'react'
+import { isRemote } from './config'
 import type { Booking, Brand, DaySchedule, DB, Service, Specialist, User } from './types'
 
 const STORAGE_KEY = 'booking-db-v1'
+
+// Демо-суперадминистратор ТОЛЬКО для локального режима (без сервера) — чтобы
+// разработку/демо можно было открыть без экрана регистрации. В боевом
+// (remote) режиме владелец заводится вручную в приватном репозитории
+// (worker/seed-owner.mjs) и сюда не попадает. Логин/пароль: demo / demo.
+const DEMO_OWNER: User = {
+  id: 'demo-owner',
+  role: 'owner',
+  username: 'demo',
+  salt: '5945b2946ed52b7f8be90ab45e03cbaf',
+  passwordHash: '2c60d90e9599003aa24dd670643ea616b1ffa98c7f19e5a0c1d6a74d46574b4b',
+  name: 'Демо-администратор',
+  createdAt: 0,
+}
 
 function emptyBrand(): Brand {
   return {
@@ -42,15 +57,23 @@ let state: DB = load()
 const listeners = new Set<() => void>()
 
 function load(): DB {
+  // В remote-режиме данные приходят с сервера (hydrate) — локально ничего не сеем.
+  if (isRemote()) return emptyDB()
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return emptyDB()
+    if (!raw) return withDemoOwner(emptyDB())
     const parsed = JSON.parse(raw) as DB
     // Мягкая миграция: дозаполняем отсутствующие поля.
-    return { ...emptyDB(), ...parsed, brand: { ...emptyBrand(), ...parsed.brand } }
+    return withDemoOwner({ ...emptyDB(), ...parsed, brand: { ...emptyBrand(), ...parsed.brand } })
   } catch {
-    return emptyDB()
+    return withDemoOwner(emptyDB())
   }
+}
+
+/** Локальный режим: гарантируем наличие демо-владельца (без экрана регистрации). */
+function withDemoOwner(db: DB): DB {
+  if (!db.users.some((u) => u.role === 'owner')) db.users = [DEMO_OWNER, ...db.users]
+  return db
 }
 
 function localPersist(db: DB) {

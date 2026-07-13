@@ -1,8 +1,8 @@
 // Локальный мок Worker'а для проверки интеграции SPA ↔ API без GitHub:
 // те же обработчики (api.js), но хранилище — в памяти.
 import http from 'node:http'
-import { handle } from '../src/api.js'
-import { emptyData } from '../src/logic.js'
+import { handle } from './src/api.js'
+import { emptyData } from './src/logic.js'
 
 function makeStore() {
   let data = emptyData()

@@ -2,7 +2,6 @@
 // в sessionStorage; персональные данные приходят только авторизованным.
 
 import { apiBase } from './config'
-import { hashPassword, randomSalt } from './crypto'
 import type { Booking, DB } from './types'
 
 const SESSION_KEY = 'booking-remote-session'
@@ -49,10 +48,6 @@ function authHeaders(): Record<string, string> {
   return s ? { Authorization: `Bearer ${s.token}` } : {}
 }
 
-export async function fetchStatus(): Promise<{ hasOwner: boolean }> {
-  return api('/api/status')
-}
-
 export async function fetchPublic(): Promise<any> {
   return api('/api/public')
 }
@@ -72,17 +67,6 @@ export interface BookingPayload {
 export async function submitBooking(payload: BookingPayload): Promise<Booking> {
   const r = await api('/api/bookings', { method: 'POST', body: JSON.stringify(payload) })
   return r.booking as Booking
-}
-
-export async function setupOwner(username: string, password: string, name: string): Promise<RemoteUser> {
-  const salt = randomSalt()
-  const passwordHash = await hashPassword(password, salt)
-  const r = await api('/api/auth/setup', {
-    method: 'POST',
-    body: JSON.stringify({ username, name, salt, passwordHash }),
-  })
-  setSession({ token: r.token, user: r.user })
-  return r.user
 }
 
 export async function login(username: string, password: string): Promise<RemoteUser> {
