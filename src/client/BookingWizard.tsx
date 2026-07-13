@@ -95,7 +95,6 @@ export function BookingWizard({
 
       <div className="wiz-content">
         <h2 className="wiz-title">{t(STEP_KEY[step])}</h2>
-        <SelectionSummary sel={sel} />
 
         <div className="wiz-body">
           {step === 'specialist' && <SpecialistStep sel={sel} onPick={(id) => choose({ specialistId: id })} />}
@@ -124,20 +123,6 @@ function CompactBrand({ onHome }: { onHome: () => void }) {
       </div>
     </button>
   )
-}
-
-function SelectionSummary({ sel }: { sel: Selection }) {
-  const db = useDB()
-  const { lang } = useI18n()
-  const svc = db.services.find((s) => s.id === sel.serviceId)
-  const sp = db.specialists.find((s) => s.id === sel.specialistId)
-  const parts: string[] = []
-  if (sp) parts.push(specialistName(sp, lang))
-  if (svc) parts.push(pick(svc.name, lang))
-  if (sel.date) parts.push(fmtFull(sel.date, lang))
-  if (sel.start) parts.push(sel.start)
-  if (parts.length === 0) return null
-  return <div className="wiz-summary">{parts.join(' · ')}</div>
 }
 
 // --- Шаг: специалист (список во всю ширину + карточка с биографией) ---
@@ -345,7 +330,6 @@ function DateTimeStep({ sel, onPick }: { sel: Selection; onPick: (date: string, 
                 onClick={() => chooseDate(cell)}
               >
                 {d.getDate()}
-                {avail && <span className="cal-dot" />}
               </button>
             )
           })}
