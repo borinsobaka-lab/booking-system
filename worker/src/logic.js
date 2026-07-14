@@ -71,6 +71,15 @@ export async function signSession(secret, payload, nowMs, ttlSec = 60 * 60 * 12)
   return `${p}.${sig}`
 }
 
+/** Токен самостоятельной отмены записи клиентом (в ссылке из письма). */
+export async function cancelToken(secret, id) {
+  return hmac(secret, `cancel:${id}`)
+}
+export async function verifyCancelToken(secret, id, token) {
+  if (!secret || !token || !id) return false
+  return (await hmac(secret, `cancel:${id}`)) === token
+}
+
 /** Проверить токен. Возвращает payload или null. */
 export async function verifySession(secret, token, nowMs) {
   if (!token || typeof token !== 'string' || !token.includes('.')) return null

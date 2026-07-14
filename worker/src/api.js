@@ -10,6 +10,7 @@ import {
   verifyPassword,
   signSession,
   verifySession,
+  verifyCancelToken,
   uid,
 } from './logic.js'
 import { notifyBookingCreated, notifyBookingCancelled } from './email.js'
@@ -188,6 +189,56 @@ export async function handle(request, env, deps) {
       }, 'booking: cancel')
 
       if (!removed) return json({ error: 'Запись не найдена' }, 404, env, request)
+      await notifyBookingCancelled(env, savedData, removed)
+      return json({ ok: true }, 200, env, request)
+    }
+
+    // --- Клиент открывает запись по ссылке из письма (токен вместо сессии) ---
+    if (path === '/api/bookings/lookup' && method === 'GET') {
+      const id = url.searchParams.get('id') || ''
+      const token = url.searchParams.get('token') || ''
+      if (!(await verifyCancelToken(env.SESSION_SECRET, id, token)))
+        return json({ error: 'Недействительная ссылка' }, 403, env, request)
+      const { data } = await store.get()
+      const b = (data.bookings || []).find((x) => x.id === id)
+      if (!b) return json({ ok: true, booking: null }, 200, env, request) // уже отменена
+      const svc = (data.services || []).find((s) => s.id === b.serviceId)
+      const sp = (data.specialists || []).find((s) => s.id === b.specialistId)
+      const nm = (v) => (typeof v === 'string' ? v : v ? v.en || v.ru || v.ka || '' : '')
+      return json(
+        {
+          ok: true,
+          booking: { id: b.id, date: b.date, start: b.start, end: b.end },
+          brand: nm(data.brand && data.brand.name) || 'NEBA',
+          address: nm(data.brand && data.brand.address),
+          phone: (data.settings && data.settings.phone) || '',
+          whatsapp: (data.settings && data.settings.whatsapp) || '',
+          service: svc ? nm(svc.name) : '',
+          master: sp ? `${nm(sp.firstName)} ${nm(sp.lastName)}`.trim() : '',
+        },
+        200,
+        env,
+        request,
+      )
+    }
+
+    // --- Клиент сам отменяет запись по токену из письма ---
+    if (path === '/api/bookings/cancel-public' && method === 'POST') {
+      const body = await request.json().catch(() => null)
+      const id = body && body.id
+      const token = body && body.token
+      if (!(await verifyCancelToken(env.SESSION_SECRET, id, token)))
+        return json({ error: 'Недействительная ссылка' }, 403, env, request)
+      let removed = null
+      let savedData = null
+      await store.update((data) => {
+        removed = (data.bookings || []).find((x) => x.id === id) || null
+        if (!removed) return null
+        data.bookings = data.bookings.filter((x) => x.id !== id)
+        savedData = data
+        return data
+      }, 'booking: cancel by client')
+      if (!removed) return json({ ok: true, already: true }, 200, env, request)
       await notifyBookingCancelled(env, savedData, removed)
       return json({ ok: true }, 200, env, request)
     }

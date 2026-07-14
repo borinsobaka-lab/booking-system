@@ -89,6 +89,27 @@ export async function cancelBookingRemote(id: string): Promise<void> {
   await api('/api/bookings/cancel', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ id }) })
 }
 
+export interface BookingLookup {
+  booking: { id: string; date: string; start: string; end: string } | null
+  brand: string
+  address: string
+  phone: string
+  whatsapp: string
+  service: string
+  master: string
+}
+
+/** Открыть запись по ссылке из письма (id + токен вместо сессии). */
+export async function lookupBooking(id: string, token: string): Promise<BookingLookup> {
+  const qs = `?id=${encodeURIComponent(id)}&token=${encodeURIComponent(token)}`
+  return api('/api/bookings/lookup' + qs)
+}
+
+/** Клиент сам отменяет запись по токену. */
+export async function cancelBookingPublic(id: string, token: string): Promise<void> {
+  await api('/api/bookings/cancel-public', { method: 'POST', body: JSON.stringify({ id, token }) })
+}
+
 export async function login(username: string, password: string): Promise<RemoteUser> {
   const r = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) })
   setSession({ token: r.token, user: r.user })

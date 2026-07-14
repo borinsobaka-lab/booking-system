@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { handle } from '../src/api.js'
-import { emptyData, hashPassword } from '../src/logic.js'
+import { emptyData, hashPassword, cancelToken } from '../src/logic.js'
 
 // --- Фейковое хранилище в памяти (вместо GitHub) ---
 function makeStore(initial) {
@@ -213,6 +213,30 @@ test('PUT /api/data не затирает записи (брони меняют�
   d.bookings = []
   await call(store, 'PUT', '/api/data', { token: login.body.token, body: { data: d } })
   assert.equal(store._peek().bookings.length, 1)
+})
+
+test('self-cancel: lookup и cancel-public по токену из письма', async () => {
+  const store = await seededStore()
+  const r1 = await call(store, 'POST', '/api/bookings', {
+    body: { specialistId: 'p1', serviceId: 's1', date: '2026-07-13', start: '10:00', clientName: 'М', clientPhone: '+1', clientEmail: 'c@x.com', consent: true },
+  })
+  const id = r1.body.booking.id
+  const token = await cancelToken(ENV.SESSION_SECRET, id)
+  // неверный токен — 403
+  const bad = await call(store, 'GET', `/api/bookings/lookup?id=${id}&token=nope`)
+  assert.equal(bad.status, 403)
+  // верный — отдаёт детали (без чужих данных)
+  const look = await call(store, 'GET', `/api/bookings/lookup?id=${id}&token=${encodeURIComponent(token)}`)
+  assert.equal(look.status, 200)
+  assert.equal(look.body.booking.start, '10:00')
+  assert.ok(look.body.service.length > 0)
+  assert.equal(JSON.stringify(look.body).includes('+1'), false) // телефон клиента не отдаём
+  // отмена: неверный токен — 403, верный — удаляет
+  const badC = await call(store, 'POST', '/api/bookings/cancel-public', { body: { id, token: 'nope' } })
+  assert.equal(badC.status, 403)
+  const ok = await call(store, 'POST', '/api/bookings/cancel-public', { body: { id, token } })
+  assert.equal(ok.status, 200)
+  assert.equal(store._peek().bookings.length, 0)
 })
 
 test('GET /api/data: нужна сессия; секреты учёток не отдаются', async () => {

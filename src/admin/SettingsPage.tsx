@@ -86,6 +86,28 @@ export function SettingsPage() {
           />
         </Field>
 
+        <p className="muted small">Контакты студии — показываются клиентам и подставляются в письма.</p>
+        <div className="form-row">
+          <Field label="Телефон">
+            <input
+              type="tel"
+              value={db.settings.phone ?? ''}
+              onChange={(e) => updateSettings({ phone: e.target.value })}
+              onBlur={flash}
+              placeholder="+995 555 12 34 56"
+            />
+          </Field>
+          <Field label="WhatsApp">
+            <input
+              type="tel"
+              value={db.settings.whatsapp ?? ''}
+              onChange={(e) => updateSettings({ whatsapp: e.target.value })}
+              onBlur={flash}
+              placeholder="+995 555 12 34 56"
+            />
+          </Field>
+        </div>
+
         {saved && <div className="saved-hint">Сохранено ✓</div>}
       </div>
 

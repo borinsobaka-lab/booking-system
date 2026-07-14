@@ -2007,6 +2007,33 @@ textarea {
   text-align: left;
   margin-top: 18px;
 }
+/* Кнопки «добавить в календарь» на экране подтверждения */
+.cal-add {
+  margin: 16px 0 6px;
+}
+.cal-add-label {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+.cal-add-btns {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.cal-add-btns .btn {
+  text-decoration: none;
+}
+/* Страница самостоятельной отмены записи */
+.cancel-page {
+  max-width: 480px;
+  margin: 0 auto;
+}
+.cancel-page .btn-block + .btn-block {
+  margin-top: 10px;
+}
 
 /* ===== Адаптив ===== */
 @media (max-width: 860px) {

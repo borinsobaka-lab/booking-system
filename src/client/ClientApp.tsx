@@ -8,6 +8,8 @@ import { useI18n, fmtFull, LangSelect } from '../i18n'
 import { Icon } from '../icons'
 import { pick, specialistName } from '../localized'
 import { addMinutes } from '../time'
+import { navigate } from '../router'
+import { googleCalUrl, outlookCalUrl, icsDataUri, type CalEvent } from './calendar'
 import { BookingWizard, type Flow } from './BookingWizard'
 import type { Booking, BookingForm } from '../types'
 
@@ -16,7 +18,7 @@ type Screen =
   | { kind: 'wizard'; flow: Flow }
   | { kind: 'done'; booking: Booking }
 
-export function ClientApp(_props: { path: string }) {
+export function ClientApp({ path }: { path: string }) {
   const db = useDB()
   const { t, lang } = useI18n()
   const [screen, setScreen] = useState<Screen>({ kind: 'landing' })
@@ -78,6 +80,16 @@ export function ClientApp(_props: { path: string }) {
     }
     addBooking(booking)
     setScreen({ kind: 'done', booking })
+  }
+
+  // Самостоятельная отмена по ссылке из письма: #/cancel?id=..&t=..
+  if (path.startsWith('/cancel')) {
+    const q = new URLSearchParams(path.split('?')[1] || '')
+    return (
+      <div className="client">
+        <CancelScreen id={q.get('id') || ''} token={q.get('t') || ''} />
+      </div>
+    )
   }
 
   // В процессе записи — своя компактная прилипающая шапка (внутри BookingWizard).
@@ -198,6 +210,16 @@ function DoneScreen({ booking, onAgain }: { booking: Booking; onAgain: () => voi
   const { lang, t } = useI18n()
   const svc = db.services.find((s) => s.id === booking.serviceId)
   const sp = db.specialists.find((s) => s.id === booking.specialistId)
+  const brand = pick(db.brand.name, lang)
+  const address = pick(db.brand.address, lang)
+  const evt: CalEvent = {
+    title: `${svc ? pick(svc.name, lang) : ''} — ${brand}`,
+    details: sp ? `${t('label.specialist')}: ${specialistName(sp, lang)}` : '',
+    location: address,
+    date: booking.date,
+    start: booking.start,
+    end: booking.end,
+  }
   return (
     <div className="done">
       <div className="done-check">✓</div>
@@ -225,9 +247,150 @@ function DoneScreen({ booking, onAgain }: { booking: Booking; onAgain: () => voi
           </div>
         )}
       </div>
+      <div className="cal-add">
+        <span className="cal-add-label">{t('cal.add')}</span>
+        <div className="cal-add-btns">
+          <a className="btn btn-sm" href={googleCalUrl(evt)} target="_blank" rel="noopener noreferrer">
+            {t('cal.google')}
+          </a>
+          <a className="btn btn-sm" href={icsDataUri(evt)} download="booking.ics">
+            {t('cal.apple')}
+          </a>
+          <a className="btn btn-sm" href={outlookCalUrl(evt)} target="_blank" rel="noopener noreferrer">
+            {t('cal.outlook')}
+          </a>
+        </div>
+      </div>
       <button className="btn btn-primary btn-block" onClick={onAgain}>
         {t('done.again')}
       </button>
     </div>
+  )
+}
+
+// Страница самостоятельной отмены записи (открывается по ссылке из письма).
+type CancelState =
+  | { kind: 'loading' }
+  | { kind: 'error' }
+  | { kind: 'gone' }
+  | { kind: 'ready'; info: remote.BookingLookup }
+  | { kind: 'cancelled' }
+
+function CancelScreen({ id, token }: { id: string; token: string }) {
+  const { t, lang } = useI18n()
+  const [state, setState] = useState<CancelState>({ kind: 'loading' })
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    if (!isRemote() || !id || !token) {
+      setState({ kind: 'error' })
+      return
+    }
+    let alive = true
+    remote
+      .lookupBooking(id, token)
+      .then((r) => alive && setState(r.booking ? { kind: 'ready', info: r } : { kind: 'gone' }))
+      .catch(() => alive && setState({ kind: 'error' }))
+    return () => {
+      alive = false
+    }
+  }, [id, token])
+
+  const doCancel = async () => {
+    if (!confirm(t('cancel.confirm'))) return
+    setBusy(true)
+    try {
+      await remote.cancelBookingPublic(id, token)
+      setState({ kind: 'cancelled' })
+    } catch {
+      setState({ kind: 'error' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const toStudio = (
+    <button className="btn btn-block" onClick={() => navigate('/')}>
+      {t('cancel.toStudio')}
+    </button>
+  )
+
+  return (
+    <>
+      <header className="client-banner">
+        <LangSelect className="banner-lang" />
+        <div className="client-banner-overlay">
+          <h1 className="brand-name">{state.kind === 'ready' ? state.info.brand : 'NEBA'}</h1>
+        </div>
+      </header>
+      <div className="client-content">
+        <div className="cancel-page">
+          {state.kind === 'loading' && (
+            <div className="empty">
+              <div className="spinner" />
+              <p className="muted">{t('cancel.loading')}</p>
+            </div>
+          )}
+          {state.kind === 'error' && (
+            <div className="empty">
+              <div className="empty-emoji">
+                <Icon name="lock" size={44} />
+              </div>
+              <p>{t('cancel.invalid')}</p>
+              {toStudio}
+            </div>
+          )}
+          {state.kind === 'gone' && (
+            <div className="done">
+              <div className="done-check">✓</div>
+              <h2>{t('cancel.done.title')}</h2>
+              <p className="muted">{t('cancel.gone')}</p>
+              {toStudio}
+            </div>
+          )}
+          {state.kind === 'cancelled' && (
+            <div className="done">
+              <div className="done-check">✓</div>
+              <h2>{t('cancel.done.title')}</h2>
+              <p className="muted">{t('cancel.done.sub')}</p>
+              {toStudio}
+            </div>
+          )}
+          {state.kind === 'ready' && (
+            <>
+              <h2 className="wiz-title">{t('cancel.heading')}</h2>
+              <div className="confirm-card">
+                <div className="confirm-row">
+                  <span>{t('label.service')}</span>
+                  <b>{state.info.service}</b>
+                </div>
+                <div className="confirm-row">
+                  <span>{t('label.specialist')}</span>
+                  <b>{state.info.master}</b>
+                </div>
+                <div className="confirm-row">
+                  <span>{t('label.when')}</span>
+                  <b>
+                    {fmtFull(state.info.booking!.date, lang)}, {state.info.booking!.start}–{state.info.booking!.end}
+                  </b>
+                </div>
+                {state.info.address && (
+                  <div className="confirm-row">
+                    <span>{t('label.address')}</span>
+                    <b>{state.info.address}</b>
+                  </div>
+                )}
+              </div>
+              <button className="btn btn-danger btn-block btn-lg" disabled={busy} onClick={doCancel}>
+                {t('cancel.button')}
+              </button>
+              <button className="btn btn-block" onClick={() => navigate('/')}>
+                {t('cancel.keep')}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </>
   )
 }

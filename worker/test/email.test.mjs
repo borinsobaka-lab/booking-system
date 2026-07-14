@@ -76,6 +76,21 @@ test('notifyBookingCreated: письма клиенту, сотрудникам 
   }
 })
 
+test('письмо клиенту: английский, дисклеймер и кнопка отмены', async () => {
+  const m = mockResend()
+  try {
+    const env = { RESEND_API_KEY: 're_x', SESSION_SECRET: 's3cr3t', CLIENT_BASE_URL: 'https://x.dev/booking-system' }
+    await notifyBookingCreated(env, fullData(), booking)
+    const clientMail = m.calls.find((c) => c.body.to.includes('client@x.com'))
+    assert.match(clientMail.body.subject, /Booking confirmed/)
+    assert.match(clientMail.body.html, /sent automatically/)
+    assert.match(clientMail.body.html, /Cancel booking/)
+    assert.match(clientMail.body.html, /#\/cancel\?id=/)
+  } finally {
+    m.restore()
+  }
+})
+
 test('TEST_EMAIL: все письма уходят на один адрес', async () => {
   const m = mockResend()
   try {
