@@ -102,14 +102,16 @@ test('TEST_EMAIL: все письма уходят на один адрес', as
   }
 })
 
-test('notifyBookingCancelled: письма клиенту и мастеру', async () => {
+test('notifyBookingCancelled: письма клиенту, сотрудникам (владельцу) и мастеру', async () => {
   const m = mockResend()
   try {
     await notifyBookingCancelled({ RESEND_API_KEY: 're_x' }, fullData(), booking)
-    assert.equal(m.calls.length, 2)
+    // клиент + сотрудники (owner+admin одним письмом) + мастер = 3
+    assert.equal(m.calls.length, 3)
     const tos = m.calls.map((c) => c.body.to.join(','))
-    assert.ok(tos.some((t) => t.includes('client@x.com')))
-    assert.ok(tos.some((t) => t.includes('master@neba.ge')))
+    assert.ok(tos.some((t) => t.includes('client@x.com')), 'клиенту')
+    assert.ok(tos.some((t) => t.includes('owner@neba.ge') && t.includes('admin@neba.ge')), 'сотрудникам (владельцу)')
+    assert.ok(tos.some((t) => t.includes('master@neba.ge')), 'мастеру')
   } finally {
     m.restore()
   }

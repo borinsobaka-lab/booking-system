@@ -206,6 +206,7 @@ export async function notifyBookingCancelled(env, data, booking) {
   if (!env || !env.RESEND_API_KEY) return
   const ctx = bookingContext(data, booking)
   const jobs = []
+  // клиент
   if (booking.clientEmail) {
     const html = layout(ctx, {
       title: 'Booking cancelled',
@@ -214,13 +215,20 @@ export async function notifyBookingCancelled(env, data, booking) {
     })
     jobs.push(sendEmail(env, { to: booking.clientEmail, subject: `Booking cancelled — ${ctx.brand}`, html }))
   }
+  const mUser = masterUser(data, booking.specialistId)
+  const staffIntro = `A booking was cancelled${ctx.clientName ? ` (client ${esc(ctx.clientName)})` : ''}.${
+    ctx.clientPhone ? ` Phone: ${esc(ctx.clientPhone)}.` : ''
+  }`
+  // сотрудники (владелец + остальные с почтой), кроме мастера записи
+  const staff = staffEmails(data, mUser ? mUser.id : null)
+  if (staff.length) {
+    const html = layout(ctx, { title: 'Booking cancelled', intro: staffIntro, showContacts: false })
+    jobs.push(sendEmail(env, { to: staff, subject: `Booking cancelled — ${ctx.brand}`, html }))
+  }
+  // мастер записи
   const master = masterEmail(data, booking.specialistId)
   if (master) {
-    const html = layout(ctx, {
-      title: 'Booking cancelled',
-      intro: `A booking was cancelled${ctx.clientName ? ` (client ${esc(ctx.clientName)})` : ''}.`,
-      showContacts: false,
-    })
+    const html = layout(ctx, { title: 'Booking cancelled', intro: staffIntro, showContacts: false })
     jobs.push(sendEmail(env, { to: master, subject: `Booking cancelled — ${ctx.brand}`, html }))
   }
   await Promise.all(jobs)
