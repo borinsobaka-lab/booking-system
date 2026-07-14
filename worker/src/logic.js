@@ -64,7 +64,7 @@ async function hmac(secret, msg) {
 }
 
 /** Выдать подписанный токен сессии сотрудника. ttlSec — срок жизни. */
-export async function signSession(secret, payload, nowMs, ttlSec = 60 * 60 * 12) {
+export async function signSession(secret, payload, nowMs, ttlSec = 60 * 60 * 24 * 30) {
   const body = { ...payload, exp: Math.floor(nowMs / 1000) + ttlSec }
   const p = base64url(new TextEncoder().encode(JSON.stringify(body)))
   const sig = await hmac(secret, p)
@@ -126,7 +126,7 @@ export function isSlotFree(data, specialistId, serviceId, date, start) {
   const busy = [
     ...(sched.breaks || []),
     ...data.bookings
-      .filter((b) => b.specialistId === specialistId && b.date === date)
+      .filter((b) => b.specialistId === specialistId && b.date === date && b.status !== 'cancelled')
       .map((b) => ({ start: b.start, end: b.end })),
   ]
   return !busy.some((r) => overlaps(cand, r))
@@ -181,12 +181,15 @@ export function toPublic(data) {
     })),
     schedules: data.schedules || [],
     // только занятость по времени — без имени, телефона, услуги и т.п.
-    busy: (data.bookings || []).map((b) => ({
-      specialistId: b.specialistId,
-      date: b.date,
-      start: b.start,
-      end: b.end,
-    })),
+    // Отменённые записи не занимают время.
+    busy: (data.bookings || [])
+      .filter((b) => b.status !== 'cancelled')
+      .map((b) => ({
+        specialistId: b.specialistId,
+        date: b.date,
+        start: b.start,
+        end: b.end,
+      })),
     // Отзывы — публичные (витрина показывает их и рейтинг у специалиста).
     reviews: (data.reviews || []).map((r) => ({
       id: r.id,

@@ -12,8 +12,10 @@ export interface LocalizedString {
   ru: string
 }
 
-/** Роли пользователей админки. owner — суперадминистратор (единственный). */
-export type Role = 'owner' | 'admin' | 'master'
+/** Роли пользователей админки. owner — суперадминистратор (единственный),
+ *  остальные — сотрудники (только просмотр). admin/master оставлены для
+ *  совместимости со старыми данными и трактуются как «сотрудник». */
+export type Role = 'owner' | 'staff' | 'admin' | 'master'
 
 export interface User {
   id: ID
@@ -110,8 +112,10 @@ export interface Booking {
   start: string
   /** 'HH:MM', вычисляется из длительности услуги. */
   end: string
-  /** Пока запись подтверждается автоматически (симуляция). */
-  status: 'confirmed'
+  /** confirmed — активная запись; cancelled — отменённая (мягкое удаление). */
+  status: 'confirmed' | 'cancelled'
+  /** Когда отменена (для раздела «Отмены»). */
+  cancelledAt?: number
   clientName?: string
   clientPhone?: string
   clientEmail?: string

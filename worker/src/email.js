@@ -74,16 +74,19 @@ export async function sendEmail(env, { to, subject, html, replyTo }) {
 
 // --- Получатели ---
 
-function staffEmails(data) {
-  return (data.users || [])
-    .filter((u) => u.email && (u.role === 'owner' || u.role === 'admin'))
-    .map((u) => u.email)
+// Учётка сотрудника, привязанная к карточке специалиста (у неё и хранится почта).
+function masterUser(data, specialistId) {
+  return (data.users || []).find((u) => u.specialistId === specialistId && u.email) || null
 }
 function masterEmail(data, specialistId) {
-  const sp = (data.specialists || []).find((s) => s.id === specialistId)
-  if (sp && sp.email) return sp.email
-  const u = (data.users || []).find((x) => x.specialistId === specialistId && x.email)
-  return u ? u.email : null
+  const u = masterUser(data, specialistId)
+  if (u) return u.email
+  const sp = (data.specialists || []).find((s) => s.id === specialistId) // legacy
+  return sp && sp.email ? sp.email : null
+}
+// Все сотрудники с почтой, кроме мастера этой записи (ему уходит своё письмо).
+function staffEmails(data, excludeUserId) {
+  return (data.users || []).filter((u) => u.email && u.id !== excludeUserId).map((u) => u.email)
 }
 
 function bookingContext(data, booking) {
@@ -176,7 +179,8 @@ export async function notifyBookingCreated(env, data, booking) {
     })
     jobs.push(sendEmail(env, { to: booking.clientEmail, subject: `Booking confirmed — ${ctx.brand}`, html }))
   }
-  const staff = staffEmails(data)
+  const mUser = masterUser(data, booking.specialistId)
+  const staff = staffEmails(data, mUser ? mUser.id : null)
   if (staff.length) {
     const html = layout(ctx, {
       title: 'New booking',
@@ -256,7 +260,7 @@ export function dueReminders(data, nowMs, leadMinutes, tz) {
   const nowWall = studioWallMs(nowMs, tz)
   const lead = (leadMinutes || 60) * 60_000
   return (data.bookings || []).filter((b) => {
-    if (b.reminderSentAt || !b.clientEmail) return false
+    if (b.reminderSentAt || !b.clientEmail || b.status === 'cancelled') return false
     const startWall = wallMs(b.date, b.start)
     return nowWall >= startWall - lead && nowWall < startWall
   })

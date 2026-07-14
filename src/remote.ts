@@ -1,5 +1,5 @@
 // Клиент Cloudflare Worker API (remote-режим). Токен сессии сотрудника хранится
-// в sessionStorage; персональные данные приходят только авторизованным.
+// в localStorage; персональные данные приходят только авторизованным.
 
 import { apiBase } from './config'
 import type { Booking, DB, Lang } from './types'
@@ -9,7 +9,7 @@ const SESSION_KEY = 'booking-remote-session'
 export interface RemoteUser {
   id: string
   name: string
-  role: 'owner' | 'admin' | 'master'
+  role: 'owner' | 'staff' | 'admin' | 'master'
   specialistId?: string
 }
 
@@ -20,7 +20,7 @@ interface Session {
 
 export function getSession(): Session | null {
   try {
-    const raw = sessionStorage.getItem(SESSION_KEY)
+    const raw = localStorage.getItem(SESSION_KEY)
     return raw ? (JSON.parse(raw) as Session) : null
   } catch {
     return null
@@ -28,8 +28,8 @@ export function getSession(): Session | null {
 }
 
 function setSession(s: Session | null) {
-  if (s) sessionStorage.setItem(SESSION_KEY, JSON.stringify(s))
-  else sessionStorage.removeItem(SESSION_KEY)
+  if (s) localStorage.setItem(SESSION_KEY, JSON.stringify(s))
+  else localStorage.removeItem(SESSION_KEY)
 }
 
 async function api(path: string, opts: RequestInit = {}): Promise<any> {

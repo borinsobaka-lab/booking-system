@@ -4,12 +4,17 @@ import { Avatar, Field, ImagePicker, Modal, LangTabs, setLoc } from '../ui'
 import { RichTextEditor } from '../RichText'
 import { pick, specialistName, emptyLoc } from '../localized'
 import { Icon } from '../icons'
+import { useAuth } from '../auth'
+import { useDeny } from './guard'
 import type { Lang, Specialist } from '../types'
 
 const A: Lang = 'ru' // отображение в админке
 
 export function SpecialistsPage() {
   const db = useDB()
+  const { canManage } = useAuth()
+  const [deny, denyModal] = useDeny()
+  const guard = (fn: () => void) => () => (canManage ? fn() : deny())
   const [editing, setEditing] = useState<Specialist | null>(null)
 
   const blank = (): Specialist => ({
@@ -27,7 +32,7 @@ export function SpecialistsPage() {
     <div className="page">
       <header className="page-head">
         <h1>Специалисты</h1>
-        <button className="btn btn-primary" onClick={() => setEditing(blank())}>
+        <button className="btn btn-primary" onClick={guard(() => setEditing(blank()))}>
           + Добавить специалиста
         </button>
       </header>
@@ -58,12 +63,12 @@ export function SpecialistsPage() {
                   )}
                 </div>
                 <div className="card-actions">
-                  <button className="linkbtn" onClick={() => setEditing(sp)}>
+                  <button className="linkbtn" onClick={guard(() => setEditing(sp))}>
                     Изменить
                   </button>
                   <button
                     className="linkbtn danger"
-                    onClick={() => confirm(`Удалить специалиста «${specialistName(sp, A)}»?`) && deleteSpecialist(sp.id)}
+                    onClick={guard(() => confirm(`Удалить специалиста «${specialistName(sp, A)}»?`) && deleteSpecialist(sp.id))}
                   >
                     Удалить
                   </button>
@@ -75,6 +80,7 @@ export function SpecialistsPage() {
       )}
 
       {editing && <SpecialistEditor specialist={editing} onClose={() => setEditing(null)} />}
+      {denyModal}
     </div>
   )
 }
@@ -120,14 +126,6 @@ function SpecialistEditor({ specialist, onClose }: { specialist: Specialist; onC
             value={sp.role[lang]}
             onChange={(e) => set('role', setLoc(sp.role, lang, e.target.value))}
             placeholder="Например, Массажист"
-          />
-        </Field>
-        <Field label="Email (для уведомлений, клиентам не показывается)">
-          <input
-            type="email"
-            value={sp.email ?? ''}
-            onChange={(e) => set('email', e.target.value)}
-            placeholder="name@example.com"
           />
         </Field>
         <div className="field">

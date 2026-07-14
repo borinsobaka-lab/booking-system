@@ -16,11 +16,17 @@ export async function enterClient(): Promise<void> {
   hydrate(remote.publicToDB(pub))
 }
 
-/** Админка: полные данные, изменения отправляем на Worker (с дебаунсом). */
+/** Админка: полные данные. Сохранение на сервер — только для владельца;
+ *  сотрудники работают в режиме просмотра (persister не ставим). */
 export async function enterAdmin(): Promise<void> {
   if (!isRemote()) return
   const data = await remote.fetchAdminData()
   hydrate(data)
+  const isOwner = remote.getSession()?.user.role === 'owner'
+  if (!isOwner) {
+    setPersister(null)
+    return
+  }
   setPersister((db: DB) => {
     clearTimeout(saveTimer)
     const snapshot = structuredClone(db)

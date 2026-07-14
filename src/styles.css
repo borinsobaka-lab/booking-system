@@ -2054,9 +2054,124 @@ textarea {
 }
 
 /* ===== Адаптив ===== */
+/* ===== Записи: вкладки, вертикальная лента, история ===== */
+.book-tabs {
+  margin: 0 0 20px;
+}
+.feed {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 640px;
+}
+.feed-day-head {
+  margin-bottom: 10px;
+}
+.feed-day-title {
+  font-size: 22px;
+  font-weight: 700;
+}
+.feed-day-sub {
+  color: var(--muted);
+  font-size: 14px;
+  margin-top: 2px;
+  text-transform: capitalize;
+}
+.feed-empty {
+  padding: 12px 2px;
+}
+.feed-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.feed-card {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px 14px;
+  width: 100%;
+  transition: border-color 0.15s;
+}
+.feed-card:hover {
+  border-color: var(--accent);
+}
+.feed-card-time {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 50px;
+  font-weight: 700;
+  font-size: 15px;
+}
+.feed-card-time .muted {
+  font-weight: 500;
+  font-size: 12px;
+}
+.feed-card-main {
+  flex: 1;
+  min-width: 0;
+}
+.feed-card-client {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 15px;
+}
+.feed-card-visit {
+  font-size: 12px;
+  margin-top: 2px;
+}
+.feed-card-svc {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+.book-history {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 640px;
+}
+.book-history-row {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  text-align: left;
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 14px;
+}
+.book-history-row:hover {
+  border-color: var(--accent);
+}
+.bh-date {
+  display: flex;
+  flex-direction: column;
+  min-width: 88px;
+  font-size: 14px;
+}
+.bh-date .muted {
+  font-size: 12px;
+}
+.bh-main {
+  flex: 1;
+  min-width: 0;
+}
+
 @media (max-width: 860px) {
   .admin {
     grid-template-columns: 1fr;
+    /* Строки по содержимому, иначе grid растягивает шапку на пол-экрана
+       на страницах с коротким содержимым. */
+    align-content: start;
   }
   /* Компактная прилипающая шапка вместо боковой панели. */
   .admin-side {

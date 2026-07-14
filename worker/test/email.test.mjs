@@ -16,12 +16,13 @@ function mockResend() {
 function fullData() {
   return {
     brand: { name: { en: 'NEBA', ka: 'NEBA', ru: 'NEBA' }, address: { ru: 'Тбилиси', en: 'Tbilisi', ka: '' } },
+    // Почта теперь на сотрудниках; мастер — сотрудник, привязанный к специалисту.
     users: [
       { id: 'o', role: 'owner', email: 'owner@neba.ge', name: 'O' },
-      { id: 'a', role: 'admin', email: 'admin@neba.ge', name: 'A' },
-      { id: 'm', role: 'master', email: 'ignored@neba.ge', name: 'M', specialistId: 'p1' },
+      { id: 'a', role: 'staff', email: 'admin@neba.ge', name: 'A' },
+      { id: 'm', role: 'staff', email: 'master@neba.ge', name: 'M', specialistId: 'p1' },
     ],
-    specialists: [{ id: 'p1', firstName: { ru: 'Екатерина' }, lastName: { ru: 'М.' }, role: { ru: 'Массажист' }, email: 'master@neba.ge' }],
+    specialists: [{ id: 'p1', firstName: { ru: 'Екатерина' }, lastName: { ru: 'М.' }, role: { ru: 'Массажист' } }],
     services: [{ id: 's1', name: { ru: 'Массаж', en: 'Massage' }, price: 120, durationMin: 60 }],
     bookings: [],
   }

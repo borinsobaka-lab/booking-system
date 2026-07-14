@@ -14,7 +14,9 @@ export interface Slot {
 }
 
 function bookingsFor(specialistId: string, date: string): Booking[] {
-  return getState().bookings.filter((b) => b.specialistId === specialistId && b.date === date)
+  return getState().bookings.filter(
+    (b) => b.specialistId === specialistId && b.date === date && b.status !== 'cancelled',
+  )
 }
 
 /** Занятые интервалы дня: перерывы + существующие записи. */

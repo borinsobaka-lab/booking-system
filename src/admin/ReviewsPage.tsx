@@ -3,6 +3,8 @@ import { useDB, saveReview, deleteReview, uid } from '../db'
 import { Avatar, Field, ImagePicker, Modal, Stars } from '../ui'
 import { specialistName } from '../localized'
 import { Icon } from '../icons'
+import { useAuth } from '../auth'
+import { useDeny } from './guard'
 import { todayKey, formatFull } from '../time'
 import type { Lang, Review } from '../types'
 
@@ -10,6 +12,9 @@ const A: Lang = 'ru'
 
 export function ReviewsPage() {
   const db = useDB()
+  const { canManage } = useAuth()
+  const [deny, denyModal] = useDeny()
+  const guard = (fn: () => void) => () => (canManage ? fn() : deny())
   const [editing, setEditing] = useState<Review | null>(null)
 
   const blank = (): Review => ({
@@ -32,7 +37,7 @@ export function ReviewsPage() {
           <h1>Отзывы</h1>
           <p className="muted small">Созданные здесь отзывы сразу видны у мастера на витрине.</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setEditing(blank())} disabled={db.specialists.length === 0}>
+        <button className="btn btn-primary" onClick={guard(() => setEditing(blank()))} disabled={db.specialists.length === 0}>
           + Добавить отзыв
         </button>
       </header>
@@ -65,10 +70,10 @@ export function ReviewsPage() {
                   {r.text && <div className="review-row-text">{r.text}</div>}
                 </div>
                 <div className="review-row-actions">
-                  <button className="linkbtn" onClick={() => setEditing(r)}>
+                  <button className="linkbtn" onClick={guard(() => setEditing(r))}>
                     Изменить
                   </button>
-                  <button className="linkbtn danger" onClick={() => confirm('Удалить отзыв?') && deleteReview(r.id)}>
+                  <button className="linkbtn danger" onClick={guard(() => confirm('Удалить отзыв?') && deleteReview(r.id))}>
                     Удалить
                   </button>
                 </div>
@@ -79,6 +84,7 @@ export function ReviewsPage() {
       )}
 
       {editing && <ReviewEditor review={editing} onClose={() => setEditing(null)} />}
+      {denyModal}
     </div>
   )
 }

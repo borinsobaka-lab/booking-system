@@ -311,6 +311,17 @@ export function deleteBooking(id: string): void {
   })
 }
 
+/** Мягкая отмена: помечаем запись cancelled (для раздела «Отмены»). */
+export function cancelBookingLocal(id: string): void {
+  mutate((db) => {
+    const b = db.bookings.find((x) => x.id === id)
+    if (b) {
+      b.status = 'cancelled'
+      b.cancelledAt = Date.now()
+    }
+  })
+}
+
 /** Полный сброс (для отладки/демо). */
 export function resetDB(): void {
   state = emptyDB()

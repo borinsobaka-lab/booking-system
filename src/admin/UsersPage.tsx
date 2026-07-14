@@ -22,7 +22,7 @@ export function UsersPage() {
           </p>
         </div>
         <button className="btn btn-primary" onClick={() => setCreating(true)}>
-          + Добавить пользователя
+          + Добавить сотрудника
         </button>
       </header>
 
@@ -117,7 +117,6 @@ function genPassword(): string {
 function UserCreator({ onClose }: { onClose: () => void }) {
   const db = useDB()
   const { createStaff } = useAuth()
-  const [role, setRole] = useState<Exclude<Role, 'owner'>>('master')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [username, setUsername] = useState('')
@@ -131,16 +130,16 @@ function UserCreator({ onClose }: { onClose: () => void }) {
     setError(null)
     setBusy(true)
     const res = await createStaff({
-      role,
+      role: 'staff',
       username,
       password,
       name,
       email,
-      specialistId: role === 'master' && specialistId ? specialistId : undefined,
+      specialistId: specialistId || undefined,
     })
     setBusy(false)
     if (!res.ok) return setError(res.error ?? 'Не удалось создать пользователя')
-    setCreated({ username: username.trim(), password, role })
+    setCreated({ username: username.trim(), password, role: 'staff' })
   }
 
   if (created) {
@@ -184,21 +183,11 @@ function UserCreator({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <Modal title="Новый пользователь" onClose={onClose}>
+    <Modal title="Новый сотрудник" onClose={onClose}>
       <div className="form">
-        <Field label="Роль">
-          <div className="segmented">
-            <button className={role === 'master' ? 'active' : ''} onClick={() => setRole('master')}>
-              Мастер
-            </button>
-            <button className={role === 'admin' ? 'active' : ''} onClick={() => setRole('admin')}>
-              Администратор
-            </button>
-          </div>
-        </Field>
         <p className="muted small">
-          И мастера, и админы могут входить и видеть записи. Управлять пользователями может только
-          суперадминистратор.
+          Сотрудник может входить и просматривать записи и контент, но не может ничего менять —
+          управляет всем только суперадминистратор.
         </p>
         <Field label="Имя сотрудника">
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Например, Нино" />
@@ -206,18 +195,20 @@ function UserCreator({ onClose }: { onClose: () => void }) {
         <Field label="Email (для уведомлений, необязательно)">
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" />
         </Field>
-        {role === 'master' && (
-          <Field label="Профиль специалиста (необязательно)">
-            <select value={specialistId} onChange={(e) => setSpecialistId(e.target.value)}>
-              <option value="">— не привязывать —</option>
-              {db.specialists.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {specialistName(s, 'ru')} · {pick(s.role, 'ru')}
-                </option>
-              ))}
-            </select>
-          </Field>
-        )}
+        <Field label="Профиль специалиста (если это мастер, необязательно)">
+          <select value={specialistId} onChange={(e) => setSpecialistId(e.target.value)}>
+            <option value="">— не привязывать —</option>
+            {db.specialists.map((s) => (
+              <option key={s.id} value={s.id}>
+                {specialistName(s, 'ru')} · {pick(s.role, 'ru')}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <p className="muted small">
+          Привяжите карточку специалиста — тогда на его email будут приходить уведомления о записях
+          и отменах к этому мастеру.
+        </p>
         <Field label="Логин">
           <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="латиницей, без пробелов" />
         </Field>

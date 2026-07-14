@@ -124,10 +124,11 @@ export async function handle(request, env, deps) {
       return json({ ok: true, booking: created }, 200, env, request)
     }
 
-    // --- Админ создаёт запись вручную (нужна сессия) ---
+    // --- Админ создаёт запись вручную (только владелец) ---
     if (path === '/api/bookings/create' && method === 'POST') {
       const session = await readSession(request, env, now())
       if (!session) return json({ error: 'Требуется вход' }, 401, env, request)
+      if (session.role !== 'owner') return json({ error: 'Недостаточно прав' }, 403, env, request)
       const b = await request.json().catch(() => null)
       if (!b) return json({ error: 'bad json' }, 400, env, request)
       const { specialistId, serviceId, date, start } = b
@@ -171,19 +172,22 @@ export async function handle(request, env, deps) {
       return json({ ok: true, booking: created }, 200, env, request)
     }
 
-    // --- Отмена записи (нужна сессия) ---
+    // --- Отмена записи (только владелец). Мягкое удаление: status=cancelled. ---
     if (path === '/api/bookings/cancel' && method === 'POST') {
       const session = await readSession(request, env, now())
       if (!session) return json({ error: 'Требуется вход' }, 401, env, request)
+      if (session.role !== 'owner') return json({ error: 'Недостаточно прав' }, 403, env, request)
       const b = await request.json().catch(() => null)
       if (!b || !b.id) return json({ error: 'bad json' }, 400, env, request)
 
       let removed = null
       let savedData = null
       await store.update((data) => {
-        removed = (data.bookings || []).find((x) => x.id === b.id) || null
-        if (!removed) return null
-        data.bookings = data.bookings.filter((x) => x.id !== b.id)
+        const bk = (data.bookings || []).find((x) => x.id === b.id)
+        if (!bk || bk.status === 'cancelled') return null
+        bk.status = 'cancelled'
+        bk.cancelledAt = now()
+        removed = bk
         savedData = data
         return data
       }, 'booking: cancel')
@@ -232,9 +236,11 @@ export async function handle(request, env, deps) {
       let removed = null
       let savedData = null
       await store.update((data) => {
-        removed = (data.bookings || []).find((x) => x.id === id) || null
-        if (!removed) return null
-        data.bookings = data.bookings.filter((x) => x.id !== id)
+        const bk = (data.bookings || []).find((x) => x.id === id)
+        if (!bk || bk.status === 'cancelled') return null
+        bk.status = 'cancelled'
+        bk.cancelledAt = now()
+        removed = bk
         savedData = data
         return data
       }, 'booking: cancel by client')
@@ -271,10 +277,11 @@ export async function handle(request, env, deps) {
       return json({ data: { ...data, users: stripUserSecrets(data.users) } }, 200, env, request)
     }
 
-    // --- Сохранение данных из админки ---
+    // --- Сохранение данных из админки (только владелец; сотрудники — просмотр) ---
     if (path === '/api/data' && method === 'PUT') {
       const session = await readSession(request, env, now())
       if (!session) return json({ error: 'Требуется вход' }, 401, env, request)
+      if (session.role !== 'owner') return json({ error: 'Недостаточно прав' }, 403, env, request)
       const body = await request.json().catch(() => null)
       const incoming = body && body.data
       if (!incoming) return json({ error: 'bad json' }, 400, env, request)

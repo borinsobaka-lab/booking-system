@@ -32,6 +32,8 @@ interface AuthContextValue {
   setPassword: (userId: string, password: string) => Promise<void>
   /** Только owner управляет пользователями. */
   canManageUsers: boolean
+  /** Только owner может что-либо менять; сотрудники — просмотр. */
+  canManage: boolean
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -46,7 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const remoteMode = isRemote()
 
   // Локальный режим
-  const [sessionId, setSessionId] = useState<string | null>(() => sessionStorage.getItem(SESSION_KEY))
+  const [sessionId, setSessionId] = useState<string | null>(() => localStorage.getItem(SESSION_KEY))
   // Remote-режим
   const [remoteUser, setRemoteUser] = useState<User | null>(() => {
     if (!remoteMode) return null
@@ -73,7 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const u = getState().users.find((x) => x.username.toLowerCase() === username.trim().toLowerCase())
       if (!u || !(await verifyPassword(password, u.salt, u.passwordHash)))
         return { ok: false, error: 'Неверный логин или пароль' }
-      sessionStorage.setItem(SESSION_KEY, u.id)
+      localStorage.setItem(SESSION_KEY, u.id)
       setSessionId(u.id)
       return { ok: true }
     },
@@ -86,7 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setRemoteUser(null)
       return
     }
-    sessionStorage.removeItem(SESSION_KEY)
+    localStorage.removeItem(SESSION_KEY)
     setSessionId(null)
   }, [remoteMode])
 
@@ -125,6 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     createStaff,
     setPassword,
     canManageUsers: user?.role === 'owner',
+    canManage: user?.role === 'owner',
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
@@ -137,5 +140,5 @@ export function useAuth(): AuthContextValue {
 }
 
 export function roleLabel(role: Role): string {
-  return role === 'owner' ? 'Суперадминистратор' : role === 'admin' ? 'Администратор' : 'Мастер'
+  return role === 'owner' ? 'Суперадминистратор' : 'Сотрудник'
 }

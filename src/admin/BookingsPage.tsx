@@ -1,151 +1,259 @@
 import { useMemo, useState } from 'react'
-import { useDB, deleteBooking, addBooking, uid } from '../db'
+import { useDB, cancelBookingLocal, addBooking, uid } from '../db'
 import { isRemote } from '../config'
 import * as remote from '../remote'
-import { Avatar, Field, Modal, money, duration } from '../ui'
-import { navigate, ADMIN_BASE } from '../router'
-import { todayKey, addDays, formatFull, toMinutes, addMinutes } from '../time'
+import { useAuth } from '../auth'
+import { useDeny } from './guard'
+import { Field, Modal, money, duration } from '../ui'
+import { todayKey, formatFull, weekdayLong, formatDayMonth, addMinutes } from '../time'
 import { freeSlots } from '../availability'
-import { PX_PER_MIN, TIMELINE_HEIGHT, hourMarks, minToY } from './timeline'
 import { pick, specialistName } from '../localized'
 import { Icon } from '../icons'
 import type { Booking, Lang } from '../types'
 
 const A: Lang = 'ru' // отображение контента в админке
 
+type Tab = 'feed' | 'history' | 'cancelled'
+
+/** Ключ клиента для подсчёта визитов: телефон → email → имя. */
+function clientKey(b: Booking): string {
+  const phone = (b.clientPhone || '').replace(/[^\d]/g, '')
+  if (phone) return 'p:' + phone
+  if (b.clientEmail) return 'e:' + b.clientEmail.trim().toLowerCase()
+  return 'n:' + (b.clientName || '').trim().toLowerCase()
+}
+
+interface Visit {
+  overall: number
+  master: number
+}
+
+/** Номер визита клиента (в целом и к конкретному мастеру) среди подтверждённых. */
+function computeVisits(bookings: Booking[]): Map<string, Visit> {
+  const confirmed = bookings
+    .filter((b) => b.status !== 'cancelled')
+    .sort((a, b) => (a.date !== b.date ? (a.date < b.date ? -1 : 1) : a.start < b.start ? -1 : 1))
+  const overall = new Map<string, number>()
+  const master = new Map<string, number>()
+  const res = new Map<string, Visit>()
+  for (const b of confirmed) {
+    const k = clientKey(b)
+    const o = (overall.get(k) || 0) + 1
+    overall.set(k, o)
+    const mk = k + '|' + b.specialistId
+    const m = (master.get(mk) || 0) + 1
+    master.set(mk, m)
+    res.set(b.id, { overall: o, master: m })
+  }
+  return res
+}
+
+const byStart = (a: Booking, b: Booking) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0)
+
 export function BookingsPage() {
   const db = useDB()
-  const [date, setDate] = useState(todayKey())
+  const { canManage } = useAuth()
+  const [deny, denyModal] = useDeny()
+  const [tab, setTab] = useState<Tab>('feed')
   const [detail, setDetail] = useState<Booking | null>(null)
   const [adding, setAdding] = useState(false)
 
-  const dayBookings = db.bookings.filter((b) => b.date === date)
+  const visits = useMemo(() => computeVisits(db.bookings), [db.bookings])
+  const today = todayKey()
+
+  // Лента: сегодня всегда + будущие дни с записями, по возрастанию даты.
+  const active = db.bookings.filter((b) => b.status !== 'cancelled' && b.date >= today)
+  const feedDates = [...new Set([today, ...active.map((b) => b.date)])].sort()
+
+  const cancel = async (b: Booking) => {
+    if (!canManage) return deny()
+    if (!confirm('Отменить эту запись?')) return
+    if (isRemote()) {
+      try {
+        await remote.cancelBookingRemote(b.id)
+      } catch (e) {
+        alert(e instanceof Error ? e.message : 'Не удалось отменить запись')
+        return
+      }
+    }
+    cancelBookingLocal(b.id)
+    setDetail(null)
+  }
 
   return (
     <div className="page">
       <header className="page-head">
         <div>
           <h1>Записи</h1>
-          <p className="muted small">
-            {formatFull(date)} · {dayBookings.length}{' '}
-            {plural(dayBookings.length, 'запись', 'записи', 'записей')}
-          </p>
         </div>
-        <div className="head-actions">
-          <div className="week-nav">
-            <button className="iconbtn" onClick={() => setDate(addDays(date, -1))}>
-              ‹
-            </button>
-            <button className="btn btn-sm" onClick={() => setDate(todayKey())}>
-              Сегодня
-            </button>
-            <button className="iconbtn" onClick={() => setDate(addDays(date, 1))}>
-              ›
-            </button>
-          </div>
-          <button className="btn btn-primary" onClick={() => setAdding(true)} disabled={db.specialists.length === 0}>
-            + Запись
-          </button>
-        </div>
+        <button
+          className="btn btn-primary"
+          onClick={() => (canManage ? setAdding(true) : deny())}
+          disabled={db.specialists.length === 0}
+        >
+          + Запись
+        </button>
       </header>
+
+      <div className="segmented book-tabs">
+        <button className={tab === 'feed' ? 'active' : ''} onClick={() => setTab('feed')}>
+          Записи
+        </button>
+        <button className={tab === 'history' ? 'active' : ''} onClick={() => setTab('history')}>
+          История
+        </button>
+        <button className={tab === 'cancelled' ? 'active' : ''} onClick={() => setTab('cancelled')}>
+          Отмены
+        </button>
+      </div>
 
       {db.specialists.length === 0 ? (
         <div className="empty">
-          <div className="empty-emoji"><Icon name="calendarDays" size={44} /></div>
-          <p>Добавьте специалистов и задайте им расписание — тогда здесь появятся рабочие дни и записи.</p>
-        </div>
-      ) : (
-        <div className="timeline">
-          <div className="tl-ruler" style={{ height: TIMELINE_HEIGHT }}>
-            {hourMarks().map((m) => (
-              <div key={m.min} className="tl-hour" style={{ top: minToY(m.min) }}>
-                <span>{m.label}</span>
-              </div>
-            ))}
+          <div className="empty-emoji">
+            <Icon name="calendarDays" size={44} />
           </div>
-          <div className="tl-days">
-            {db.specialists.map((sp) => {
-              const sched = db.schedules.find((s) => s.specialistId === sp.id && s.date === date)
-              const working = !!sched && sched.windows.length > 0
-              const bookings = dayBookings.filter((b) => b.specialistId === sp.id)
-              return (
-                <div key={sp.id} className="tl-day">
-                  <div className="tl-day-head spec-head">
-                    <Avatar src={sp.avatar} name={specialistName(sp, A)} size={30} />
-                    <div className="spec-head-info">
-                      <div className="tl-day-name">{specialistName(sp, A)}</div>
-                      <div className={`tl-day-status ${working ? 'work' : 'off'}`}>
-                        {working ? 'рабочий день' : 'выходной'}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="tl-col" style={{ height: TIMELINE_HEIGHT }}>
-                    {hourMarks().map((m) => (
-                      <div key={m.min} className="tl-gridline" style={{ top: minToY(m.min) }} />
-                    ))}
-
-                    {/* рабочие окна — светлый фон */}
-                    {sched?.windows.map((w, i) => (
-                      <div
-                        key={`w${i}`}
-                        className="tl-zone-work"
-                        style={{ top: minToY(toMinutes(w.start)), height: (toMinutes(w.end) - toMinutes(w.start)) * PX_PER_MIN }}
-                      />
-                    ))}
-                    {/* перерывы */}
-                    {sched?.breaks.map((b, i) => (
-                      <div
-                        key={`b${i}`}
-                        className="tl-zone-break"
-                        style={{ top: minToY(toMinutes(b.start)), height: (toMinutes(b.end) - toMinutes(b.start)) * PX_PER_MIN }}
-                      >
-                        <span>перерыв</span>
-                      </div>
-                    ))}
-
-                    {!working && (
-                      <button className="tl-off-overlay" onClick={() => navigate(`${ADMIN_BASE}/schedule`)}>
-                        Выходной
-                        <span className="muted small">Назначить в расписании →</span>
-                      </button>
-                    )}
-
-                    {/* записи */}
-                    {bookings.map((bk) => {
-                      const svc = db.services.find((s) => s.id === bk.serviceId)
-                      return (
-                        <button
-                          key={bk.id}
-                          className="tl-block tl-booking clickable"
-                          style={{ top: minToY(toMinutes(bk.start)), height: (toMinutes(bk.end) - toMinutes(bk.start)) * PX_PER_MIN }}
-                          onClick={() => setDetail(bk)}
-                        >
-                          <span className="tl-block-time">
-                            {bk.start}–{bk.end}
-                          </span>
-                          <span className="tl-block-label">{svc ? pick(svc.name, A) : 'Услуга'}</span>
-                          {bk.clientName && <span className="tl-block-client">{bk.clientName}</span>}
-                        </button>
-                      )
-                    })}
+          <p>Добавьте специалистов и задайте им расписание — тогда здесь появятся записи.</p>
+        </div>
+      ) : tab === 'feed' ? (
+        <div className="feed">
+          {feedDates.map((date) => {
+            const items = active.filter((b) => b.date === date).sort(byStart)
+            const isToday = date === today
+            return (
+              <section className="feed-day" key={date}>
+                <div className="feed-day-head">
+                  <div className="feed-day-title">{isToday ? 'Сегодня' : formatDayMonth(date)}</div>
+                  <div className="feed-day-sub">
+                    {weekdayLong(date)}
+                    {isToday ? `, ${formatDayMonth(date)}` : ''}
                   </div>
                 </div>
-              )
-            })}
-          </div>
+                {items.length === 0 ? (
+                  <div className="feed-empty muted">Нет записей</div>
+                ) : (
+                  <div className="feed-list">
+                    {items.map((b) => (
+                      <FeedCard key={b.id} booking={b} visit={visits.get(b.id)} onOpen={() => setDetail(b)} />
+                    ))}
+                  </div>
+                )}
+              </section>
+            )
+          })}
         </div>
+      ) : tab === 'history' ? (
+        <BookingTable
+          bookings={[...db.bookings].sort((a, b) =>
+            a.date !== b.date ? (a.date > b.date ? -1 : 1) : a.start > b.start ? -1 : 1,
+          )}
+          onOpen={setDetail}
+          emptyText="Записей пока нет."
+        />
+      ) : (
+        <BookingTable
+          bookings={db.bookings
+            .filter((b) => b.status === 'cancelled')
+            .sort((a, b) => (b.cancelledAt || 0) - (a.cancelledAt || 0))}
+          onOpen={setDetail}
+          emptyText="Отменённых записей нет."
+        />
       )}
 
-      {detail && <BookingDetail booking={detail} onClose={() => setDetail(null)} />}
-      {adding && <ManualBooking date={date} onClose={() => setAdding(false)} />}
+      {detail && <BookingDetail booking={detail} canManage={canManage} onCancel={cancel} onClose={() => setDetail(null)} />}
+      {adding && <ManualBooking date={today} onClose={() => setAdding(false)} />}
+      {denyModal}
     </div>
   )
 }
 
-function BookingDetail({ booking, onClose }: { booking: Booking; onClose: () => void }) {
+function visitLabel(v?: Visit): { text: string; badge?: string; badgeClass?: string } {
+  if (!v) return { text: '' }
+  const text = `${v.overall}-й визит`
+  if (v.overall === 1) return { text, badge: 'новый клиент', badgeClass: 'badge-ok' }
+  if (v.master === 1) return { text: `${text} · к мастеру впервые`, badge: 'первый к мастеру' }
+  return { text: `${text} · к мастеру ${v.master}-й` }
+}
+
+function FeedCard({ booking, visit, onOpen }: { booking: Booking; visit?: Visit; onOpen: () => void }) {
   const db = useDB()
   const svc = db.services.find((s) => s.id === booking.serviceId)
   const sp = db.specialists.find((s) => s.id === booking.specialistId)
+  const vl = visitLabel(visit)
+  return (
+    <button className="feed-card" onClick={onOpen}>
+      <div className="feed-card-time">
+        <span>{booking.start}</span>
+        <span className="muted">{booking.end}</span>
+      </div>
+      <div className="feed-card-main">
+        <div className="feed-card-client">
+          <b>{booking.clientName || 'Без имени'}</b>
+          {vl.badge && <span className={`badge ${vl.badgeClass || ''}`}>{vl.badge}</span>}
+        </div>
+        {vl.text && <div className="feed-card-visit muted">{vl.text}</div>}
+        <div className="feed-card-svc">
+          {svc ? pick(svc.name, A) : 'Услуга'} · {sp ? specialistName(sp, A) : '—'}
+        </div>
+      </div>
+    </button>
+  )
+}
+
+function BookingTable({
+  bookings,
+  onOpen,
+  emptyText,
+}: {
+  bookings: Booking[]
+  onOpen: (b: Booking) => void
+  emptyText: string
+}) {
+  const db = useDB()
+  if (bookings.length === 0) return <div className="feed-empty muted">{emptyText}</div>
+  return (
+    <div className="book-history">
+      {bookings.map((b) => {
+        const svc = db.services.find((s) => s.id === b.serviceId)
+        const sp = db.specialists.find((s) => s.id === b.specialistId)
+        return (
+          <button className="book-history-row" key={b.id} onClick={() => onOpen(b)}>
+            <div className="bh-date">
+              <b>{formatDayMonth(b.date)}</b>
+              <span className="muted">
+                {b.start}–{b.end}
+              </span>
+            </div>
+            <div className="bh-main">
+              <div>{b.clientName || 'Без имени'}</div>
+              <div className="muted small">
+                {svc ? pick(svc.name, A) : '—'} · {sp ? specialistName(sp, A) : '—'}
+              </div>
+            </div>
+            <span className={`badge ${b.status === 'cancelled' ? '' : 'badge-ok'}`}>
+              {b.status === 'cancelled' ? 'отменена' : 'активна'}
+            </span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function BookingDetail({
+  booking,
+  canManage,
+  onCancel,
+  onClose,
+}: {
+  booking: Booking
+  canManage: boolean
+  onCancel: (b: Booking) => void
+  onClose: () => void
+}) {
+  const db = useDB()
+  const svc = db.services.find((s) => s.id === booking.serviceId)
+  const sp = db.specialists.find((s) => s.id === booking.specialistId)
+  const cancelled = booking.status === 'cancelled'
   return (
     <Modal title="Запись" onClose={onClose}>
       <div className="detail">
@@ -188,28 +296,15 @@ function BookingDetail({ booking, onClose }: { booking: Booking; onClose: () => 
           )}
           <dt>Статус</dt>
           <dd>
-            <span className="badge badge-ok">подтверждена</span>
+            <span className={`badge ${cancelled ? '' : 'badge-ok'}`}>{cancelled ? 'отменена' : 'подтверждена'}</span>
           </dd>
         </dl>
         <div className="form-actions">
-          <button
-            className="btn btn-danger"
-            onClick={async () => {
-              if (!confirm('Отменить эту запись?')) return
-              if (isRemote()) {
-                try {
-                  await remote.cancelBookingRemote(booking.id)
-                } catch (e) {
-                  alert(e instanceof Error ? e.message : 'Не удалось отменить запись')
-                  return
-                }
-              }
-              deleteBooking(booking.id)
-              onClose()
-            }}
-          >
-            Отменить запись
-          </button>
+          {!cancelled && canManage && (
+            <button className="btn btn-danger" onClick={() => onCancel(booking)}>
+              Отменить запись
+            </button>
+          )}
           <button className="btn btn-primary" onClick={onClose}>
             Закрыть
           </button>
@@ -225,6 +320,7 @@ function ManualBooking({ date, onClose }: { date: string; onClose: () => void })
   const [serviceId, setServiceId] = useState('')
   const [start, setStart] = useState('')
   const [clientName, setClientName] = useState('')
+  const [busy, setBusy] = useState(false)
 
   const spec = db.specialists.find((s) => s.id === specId)
   const availableServices = spec ? db.services.filter((s) => spec.serviceIds.includes(s.id)) : []
@@ -236,6 +332,7 @@ function ManualBooking({ date, onClose }: { date: string; onClose: () => void })
 
   const save = async () => {
     if (!spec || !service || !start) return
+    setBusy(true)
     if (isRemote()) {
       try {
         const bk = await remote.createBookingAdmin({
@@ -247,6 +344,7 @@ function ManualBooking({ date, onClose }: { date: string; onClose: () => void })
         })
         addBooking(bk)
       } catch (e) {
+        setBusy(false)
         alert(e instanceof Error ? e.message : 'Не удалось создать запись')
         return
       }
@@ -263,6 +361,7 @@ function ManualBooking({ date, onClose }: { date: string; onClose: () => void })
         createdAt: Date.now(),
       })
     }
+    setBusy(false)
     onClose()
   }
 
@@ -332,19 +431,11 @@ function ManualBooking({ date, onClose }: { date: string; onClose: () => void })
           <button className="btn" onClick={onClose}>
             Отмена
           </button>
-          <button className="btn btn-primary" onClick={save} disabled={!spec || !service || !start}>
-            Создать запись
+          <button className="btn btn-primary" onClick={save} disabled={!spec || !service || !start || busy}>
+            {busy ? 'Создаём…' : 'Создать запись'}
           </button>
         </div>
       </div>
     </Modal>
   )
-}
-
-function plural(n: number, one: string, few: string, many: string): string {
-  const m10 = n % 10
-  const m100 = n % 100
-  if (m10 === 1 && m100 !== 11) return one
-  if (m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20)) return few
-  return many
 }

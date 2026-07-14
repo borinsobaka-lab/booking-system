@@ -5,6 +5,8 @@ import { fromMinutes, toMinutes, startOfWeek, weekDays, todayKey, addDays, weekd
 import { DAY_END_MIN, DAY_START_MIN, PX_PER_MIN, TIMELINE_HEIGHT, hourMarks, minToY, yToMin } from './timeline'
 import { pick, specialistName } from '../localized'
 import { Icon } from '../icons'
+import { useAuth } from '../auth'
+import { useDeny } from './guard'
 import type { DaySchedule, Lang, TimeRange } from '../types'
 
 const A: Lang = 'ru' // отображение контента в админке
@@ -34,6 +36,9 @@ interface Draft {
 
 export function SchedulePage() {
   const db = useDB()
+  const { canManage } = useAuth()
+  const [deny, denyModal] = useDeny()
+  const guard = (fn: () => void) => () => (canManage ? fn() : deny())
   const [specId, setSpecId] = useState<string>(db.specialists[0]?.id ?? '')
   const [weekStart, setWeekStart] = useState(() => startOfWeek(todayKey()))
   const [mode, setMode] = useState<Mode>('work')
@@ -76,6 +81,7 @@ export function SchedulePage() {
   }
 
   const onPointerDown = (date: string, e: React.PointerEvent) => {
+    if (!canManage) return deny() // сотрудник: только просмотр
     if ((e.target as HTMLElement).closest('.tl-block')) return // клик по блоку — не рисуем
     const rect = e.currentTarget.getBoundingClientRect()
     const min = yToMin(e.clientY - rect.top)
@@ -181,7 +187,7 @@ export function SchedulePage() {
                   <div className={`tl-day-status ${working ? 'work' : 'off'}`}>
                     {working ? 'рабочий' : 'выходной'}
                     {(s?.windows.length || s?.breaks.length) ? (
-                      <button className="tl-clear" title="Очистить день" onClick={() => clearDay(date)}>
+                      <button className="tl-clear" title="Очистить день" onClick={guard(() => clearDay(date))}>
                         ✕
                       </button>
                     ) : null}
@@ -210,7 +216,7 @@ export function SchedulePage() {
                       <span className="tl-block-label">
                         {w.start}–{w.end}
                       </span>
-                      <button className="tl-del" onClick={() => removeWindow(date, i)} title="Удалить">
+                      <button className="tl-del" onClick={guard(() => removeWindow(date, i))} title="Удалить">
                         ✕
                       </button>
                     </div>
@@ -224,7 +230,7 @@ export function SchedulePage() {
                       style={{ top: minToY(toMinutes(b.start)), height: (toMinutes(b.end) - toMinutes(b.start)) * PX_PER_MIN }}
                     >
                       <span className="tl-block-label">перерыв {b.start}–{b.end}</span>
-                      <button className="tl-del" onClick={() => removeBreak(date, i)} title="Удалить">
+                      <button className="tl-del" onClick={guard(() => removeBreak(date, i))} title="Удалить">
                         ✕
                       </button>
                     </div>
@@ -264,6 +270,7 @@ export function SchedulePage() {
           })}
         </div>
       </div>
+      {denyModal}
     </div>
   )
 }

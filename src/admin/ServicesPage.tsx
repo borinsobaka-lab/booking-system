@@ -4,6 +4,8 @@ import { Field, ImagePicker, Modal, money, duration, LangTabs, setLoc } from '..
 import { pick } from '../localized'
 import { emptyLoc } from '../localized'
 import { Icon } from '../icons'
+import { useAuth } from '../auth'
+import { useDeny } from './guard'
 import type { Lang, Service } from '../types'
 
 // В админке контент показываем на русском (с фолбэком).
@@ -11,7 +13,10 @@ const A: Lang = 'ru'
 
 export function ServicesPage() {
   const db = useDB()
+  const { canManage } = useAuth()
+  const [deny, denyModal] = useDeny()
   const [editing, setEditing] = useState<Service | null>(null)
+  const guard = (fn: () => void) => () => (canManage ? fn() : deny())
 
   const blank = (): Service => ({
     id: uid(),
@@ -27,7 +32,7 @@ export function ServicesPage() {
     <div className="page">
       <header className="page-head">
         <h1>Услуги</h1>
-        <button className="btn btn-primary" onClick={() => setEditing(blank())}>
+        <button className="btn btn-primary" onClick={guard(() => setEditing(blank()))}>
           + Добавить услугу
         </button>
       </header>
@@ -56,12 +61,12 @@ export function ServicesPage() {
                 </div>
               </div>
               <div className="card-actions">
-                <button className="linkbtn" onClick={() => setEditing(s)}>
+                <button className="linkbtn" onClick={guard(() => setEditing(s))}>
                   Изменить
                 </button>
                 <button
                   className="linkbtn danger"
-                  onClick={() => confirm(`Удалить услугу «${pick(s.name, A)}»?`) && deleteService(s.id)}
+                  onClick={guard(() => confirm(`Удалить услугу «${pick(s.name, A)}»?`) && deleteService(s.id))}
                 >
                   Удалить
                 </button>
@@ -72,6 +77,7 @@ export function ServicesPage() {
       )}
 
       {editing && <ServiceEditor service={editing} onClose={() => setEditing(null)} />}
+      {denyModal}
     </div>
   )
 }
