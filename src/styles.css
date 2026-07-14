@@ -753,7 +753,7 @@ textarea {
   position: relative;
   width: 52px;
   flex: none;
-  margin-top: 56px;
+  margin-top: 64px;
 }
 .tl-hour {
   position: absolute;
@@ -772,10 +772,11 @@ textarea {
   min-width: 150px;
 }
 .tl-day-head {
-  height: 50px;
+  height: 58px;
   display: flex;
   flex-direction: column;
   justify-content: center;
+  gap: 2px;
   padding: 4px 6px;
   border-bottom: 1px solid var(--border);
 }
@@ -803,6 +804,28 @@ textarea {
 .tl-day-status.off {
   color: var(--muted);
 }
+.tl-day-headrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 2px;
+}
+.tl-add {
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  white-space: nowrap;
+  flex: none;
+}
+.tl-add:hover {
+  background: var(--accent);
+  color: #fff;
+}
 .tl-clear {
   border: none;
   background: none;
@@ -810,16 +833,63 @@ textarea {
   font-size: 12px;
   padding: 0 2px;
 }
+/* ===== Модалка «Задать время дня» ===== */
+.day-editor .segmented {
+  width: 100%;
+}
+.time-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.time-row .field {
+  flex: 1 1 90px;
+  margin: 0;
+}
+.time-row input[type='time'] {
+  width: 100%;
+}
+.time-add {
+  flex: none;
+  height: 40px;
+}
+.day-lists {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 4px 0 2px;
+}
+.day-interval {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  font-size: 14px;
+}
+.day-interval .di-label {
+  color: var(--muted);
+  font-size: 13px;
+}
+.day-interval b {
+  margin-left: auto;
+}
+.day-interval .linkbtn {
+  margin-left: 0;
+}
 .tl-col {
   position: relative;
   margin-top: 6px;
   border-radius: 8px;
   background: #fbfbfd;
-  /* pan-x: горизонтальный свайп листает дни, вертикальный — рисует часы (тач). */
-  touch-action: pan-x;
-  cursor: crosshair;
-  -webkit-user-select: none;
-  user-select: none;
+}
+/* Таймлайн только для просмотра — страница свободно скроллится. */
+.tl-col-view {
+  touch-action: auto;
+  cursor: default;
 }
 .tl-gridline {
   position: absolute;

@@ -1,8 +1,8 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { useDB, setDaySchedule, getDaySchedule } from '../db'
-import { Avatar } from '../ui'
-import { fromMinutes, toMinutes, startOfWeek, weekDays, todayKey, addDays, weekdayShort, formatDayMonth } from '../time'
-import { DAY_END_MIN, DAY_START_MIN, PX_PER_MIN, TIMELINE_HEIGHT, hourMarks, minToY, yToMin } from './timeline'
+import { Avatar, Modal } from '../ui'
+import { toMinutes, startOfWeek, weekDays, todayKey, addDays, weekdayShort, formatDayMonth } from '../time'
+import { PX_PER_MIN, TIMELINE_HEIGHT, hourMarks, minToY } from './timeline'
 import { pick, specialistName } from '../localized'
 import { Icon } from '../icons'
 import { useAuth } from '../auth'
@@ -10,8 +10,6 @@ import { useDeny } from './guard'
 import type { DaySchedule, Lang, TimeRange } from '../types'
 
 const A: Lang = 'ru' // отображение контента в админке
-
-type Mode = 'work' | 'break'
 
 /** Слить перекрывающиеся/смежные интервалы. */
 function mergeRanges(ranges: TimeRange[]): TimeRange[] {
@@ -28,22 +26,13 @@ function mergeRanges(ranges: TimeRange[]): TimeRange[] {
   return out
 }
 
-interface Draft {
-  date: string
-  fromMin: number
-  toMin: number
-}
-
 export function SchedulePage() {
   const db = useDB()
   const { canManage } = useAuth()
   const [deny, denyModal] = useDeny()
-  const guard = (fn: () => void) => () => (canManage ? fn() : deny())
   const [specId, setSpecId] = useState<string>(db.specialists[0]?.id ?? '')
   const [weekStart, setWeekStart] = useState(() => startOfWeek(todayKey()))
-  const [mode, setMode] = useState<Mode>('work')
-  const [draft, setDraft] = useState<Draft | null>(null)
-  const drawing = useRef<{ date: string; anchorMin: number } | null>(null)
+  const [editDate, setEditDate] = useState<string | null>(null)
 
   const spec = db.specialists.find((s) => s.id === specId)
   const days = weekDays(weekStart)
@@ -62,76 +51,13 @@ export function SchedulePage() {
     )
   }
 
-  const commitDraft = () => {
-    const d = draft
-    drawing.current = null
-    setDraft(null)
-    if (!d || !spec) return
-    const from = Math.min(d.fromMin, d.toMin)
-    const to = Math.max(d.fromMin, d.toMin)
-    if (to - from < 15) return
-    const existing =
-      getDaySchedule(spec.id, d.date) ?? ({ specialistId: spec.id, date: d.date, windows: [], breaks: [] } as DaySchedule)
-    const range: TimeRange = { start: fromMinutes(from), end: fromMinutes(to) }
-    const next: DaySchedule =
-      mode === 'work'
-        ? { ...existing, windows: mergeRanges([...existing.windows, range]) }
-        : { ...existing, breaks: mergeRanges([...existing.breaks, range]) }
-    setDaySchedule(next)
-  }
-
-  const onPointerDown = (date: string, e: React.PointerEvent) => {
-    if (!canManage) return deny() // сотрудник: только просмотр
-    if ((e.target as HTMLElement).closest('.tl-block')) return // клик по блоку — не рисуем
-    const rect = e.currentTarget.getBoundingClientRect()
-    const min = yToMin(e.clientY - rect.top)
-    drawing.current = { date, anchorMin: min }
-    setDraft({ date, fromMin: min, toMin: min })
-    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-  }
-
-  const onPointerMove = (e: React.PointerEvent) => {
-    const dr = drawing.current
-    if (!dr) return
-    const rect = e.currentTarget.getBoundingClientRect()
-    const min = yToMin(e.clientY - rect.top)
-    setDraft({ date: dr.date, fromMin: dr.anchorMin, toMin: min })
-  }
-
-  const removeWindow = (date: string, idx: number) => {
-    if (!spec) return
-    const s = getDaySchedule(spec.id, date)
-    if (!s) return
-    setDaySchedule({ ...s, windows: s.windows.filter((_, i) => i !== idx) })
-  }
-  const removeBreak = (date: string, idx: number) => {
-    if (!spec) return
-    const s = getDaySchedule(spec.id, date)
-    if (!s) return
-    setDaySchedule({ ...s, breaks: s.breaks.filter((_, i) => i !== idx) })
-  }
-  const clearDay = (date: string) => {
-    if (!spec) return
-    setDaySchedule({ specialistId: spec.id, date, windows: [], breaks: [] })
-  }
+  const openDay = (date: string) => (canManage ? setEditDate(date) : deny())
 
   return (
     <div className="page">
       <header className="page-head">
         <h1>Расписание</h1>
       </header>
-
-      <div className="mode-toggle">
-        <span className="muted small">Рисуем:</span>
-        <div className="segmented">
-          <button className={mode === 'work' ? 'active' : ''} onClick={() => setMode('work')}>
-            <span className="swatch swatch-work" /> Рабочее время
-          </button>
-          <button className={mode === 'break' ? 'active' : ''} onClick={() => setMode('break')}>
-            <span className="swatch swatch-break" /> Перерыв
-          </button>
-        </div>
-      </div>
 
       <div className="sched-controls">
         <div className="spec-picker">
@@ -160,8 +86,8 @@ export function SchedulePage() {
       </div>
 
       <p className="muted small hint-line">
-        Проведите вниз по колонке дня, чтобы задать {mode === 'work' ? 'рабочие часы' : 'перерыв'} (на телефоне —
-        пальцем). Нажмите ✕ на блоке, чтобы удалить. Дни листаются свайпом в сторону.
+        Нажмите «＋ время» в колонке дня, чтобы задать рабочие часы и перерывы. На таймлайне — только
+        просмотр: рабочее время, перерывы и записи клиентов.
       </p>
 
       <div className="timeline">
@@ -178,30 +104,27 @@ export function SchedulePage() {
             const s = spec ? getDaySchedule(spec.id, date) : undefined
             const isToday = date === todayKey()
             const working = !!s && s.windows.length > 0
-            const bookings = spec ? db.bookings.filter((b) => b.specialistId === spec.id && b.date === date) : []
+            const bookings = spec
+              ? db.bookings.filter(
+                  (b) => b.specialistId === spec.id && b.date === date && b.status !== 'cancelled',
+                )
+              : []
             return (
               <div key={date} className={`tl-day${isToday ? ' today' : ''}`}>
                 <div className="tl-day-head">
                   <div className="tl-day-name">
                     {weekdayShort(date)} <span className="muted">{formatDayMonth(date)}</span>
                   </div>
-                  <div className={`tl-day-status ${working ? 'work' : 'off'}`}>
-                    {working ? 'рабочий' : 'выходной'}
-                    {(s?.windows.length || s?.breaks.length) ? (
-                      <button className="tl-clear" title="Очистить день" onClick={guard(() => clearDay(date))}>
-                        ✕
-                      </button>
-                    ) : null}
+                  <div className="tl-day-headrow">
+                    <span className={`tl-day-status ${working ? 'work' : 'off'}`}>
+                      {working ? 'рабочий' : 'выходной'}
+                    </span>
+                    <button className="tl-add" onClick={() => openDay(date)} title="Задать время">
+                      ＋ время
+                    </button>
                   </div>
                 </div>
-                <div
-                  className="tl-col"
-                  style={{ height: TIMELINE_HEIGHT }}
-                  onPointerDown={(e) => onPointerDown(date, e)}
-                  onPointerMove={onPointerMove}
-                  onPointerUp={commitDraft}
-                  onPointerCancel={commitDraft}
-                >
+                <div className="tl-col tl-col-view" style={{ height: TIMELINE_HEIGHT }}>
                   {/* фоновая сетка часов */}
                   {hourMarks().map((m) => (
                     <div key={m.min} className="tl-gridline" style={{ top: minToY(m.min) }} />
@@ -217,9 +140,6 @@ export function SchedulePage() {
                       <span className="tl-block-label">
                         {w.start}–{w.end}
                       </span>
-                      <button className="tl-del" onClick={guard(() => removeWindow(date, i))} title="Удалить">
-                        ✕
-                      </button>
                     </div>
                   ))}
 
@@ -231,13 +151,10 @@ export function SchedulePage() {
                       style={{ top: minToY(toMinutes(b.start)), height: (toMinutes(b.end) - toMinutes(b.start)) * PX_PER_MIN }}
                     >
                       <span className="tl-block-label">перерыв {b.start}–{b.end}</span>
-                      <button className="tl-del" onClick={guard(() => removeBreak(date, i))} title="Удалить">
-                        ✕
-                      </button>
                     </div>
                   ))}
 
-                  {/* записи клиентов (только показ) */}
+                  {/* записи клиентов (только показ; отменённые не показываем) */}
                   {bookings.map((bk) => (
                     <div
                       key={bk.id}
@@ -250,28 +167,131 @@ export function SchedulePage() {
                       </span>
                     </div>
                   ))}
-
-                  {/* черновик текущего рисования */}
-                  {draft && draft.date === date && (
-                    <div
-                      className={`tl-block tl-draft ${mode === 'work' ? 'tl-work' : 'tl-break'}`}
-                      style={{
-                        top: minToY(Math.min(draft.fromMin, draft.toMin)),
-                        height: Math.max(2, Math.abs(draft.toMin - draft.fromMin) * PX_PER_MIN),
-                      }}
-                    >
-                      <span className="tl-block-label">
-                        {fromMinutes(Math.min(draft.fromMin, draft.toMin))}–{fromMinutes(Math.max(draft.fromMin, draft.toMin))}
-                      </span>
-                    </div>
-                  )}
                 </div>
               </div>
             )
           })}
         </div>
       </div>
+
+      {editDate && spec && (
+        <DayEditor specialistId={spec.id} date={editDate} onClose={() => setEditDate(null)} />
+      )}
       {denyModal}
     </div>
+  )
+}
+
+/** Модальное окно: задать рабочие часы и перерывы для конкретного дня. */
+function DayEditor({ specialistId, date, onClose }: { specialistId: string; date: string; onClose: () => void }) {
+  const db = useDB()
+  const sched = db.schedules.find((s) => s.specialistId === specialistId && s.date === date)
+  const windows = sched?.windows ?? []
+  const breaks = sched?.breaks ?? []
+
+  const [type, setType] = useState<'work' | 'break'>('work')
+  const [from, setFrom] = useState('10:00')
+  const [to, setTo] = useState('18:00')
+
+  const base = (): DaySchedule => sched ?? { specialistId, date, windows: [], breaks: [] }
+
+  const add = () => {
+    if (toMinutes(to) - toMinutes(from) < 15) {
+      alert('Конец должен быть позже начала (минимум 15 минут).')
+      return
+    }
+    const range: TimeRange = { start: from, end: to }
+    const b = base()
+    if (type === 'work') setDaySchedule({ ...b, windows: mergeRanges([...b.windows, range]) })
+    else setDaySchedule({ ...b, breaks: mergeRanges([...b.breaks, range]) })
+  }
+
+  const removeWindow = (i: number) => setDaySchedule({ ...base(), windows: windows.filter((_, x) => x !== i) })
+  const removeBreak = (i: number) => setDaySchedule({ ...base(), breaks: breaks.filter((_, x) => x !== i) })
+  const clearDay = () => {
+    if (confirm('Очистить весь день?')) setDaySchedule({ specialistId, date, windows: [], breaks: [] })
+  }
+
+  const setPreset = (t: 'work' | 'break') => {
+    setType(t)
+    if (t === 'break') {
+      setFrom('13:00')
+      setTo('14:00')
+    } else {
+      setFrom('10:00')
+      setTo('18:00')
+    }
+  }
+
+  const empty = windows.length === 0 && breaks.length === 0
+
+  return (
+    <Modal title={`${weekdayShort(date)}, ${formatDayMonth(date)}`} onClose={onClose}>
+      <div className="form day-editor">
+        <div className="field">
+          <span className="field-label">Что добавить</span>
+          <div className="segmented">
+            <button className={type === 'work' ? 'active' : ''} onClick={() => setPreset('work')}>
+              <span className="swatch swatch-work" /> Рабочее время
+            </button>
+            <button className={type === 'break' ? 'active' : ''} onClick={() => setPreset('break')}>
+              <span className="swatch swatch-break" /> Перерыв
+            </button>
+          </div>
+        </div>
+
+        <div className="time-row">
+          <label className="field">
+            <span className="field-label">С</span>
+            <input type="time" step={900} value={from} onChange={(e) => setFrom(e.target.value)} />
+          </label>
+          <label className="field">
+            <span className="field-label">До</span>
+            <input type="time" step={900} value={to} onChange={(e) => setTo(e.target.value)} />
+          </label>
+          <button className="btn btn-primary time-add" onClick={add}>
+            Добавить
+          </button>
+        </div>
+
+        <div className="day-lists">
+          {empty ? (
+            <p className="muted small">Пока ничего не задано — это выходной.</p>
+          ) : (
+            <>
+              {windows.map((w, i) => (
+                <div className="day-interval" key={`w${i}`}>
+                  <span className="swatch swatch-work" />
+                  <span className="di-label">Рабочее время</span>
+                  <b>{w.start}–{w.end}</b>
+                  <button className="linkbtn danger" onClick={() => removeWindow(i)}>
+                    Удалить
+                  </button>
+                </div>
+              ))}
+              {breaks.map((b, i) => (
+                <div className="day-interval" key={`b${i}`}>
+                  <span className="swatch swatch-break" />
+                  <span className="di-label">Перерыв</span>
+                  <b>{b.start}–{b.end}</b>
+                  <button className="linkbtn danger" onClick={() => removeBreak(i)}>
+                    Удалить
+                  </button>
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+
+        <div className="form-actions">
+          <button className="linkbtn danger" onClick={clearDay} disabled={empty}>
+            Очистить день
+          </button>
+          <button className="btn btn-primary" onClick={onClose}>
+            Готово
+          </button>
+        </div>
+      </div>
+    </Modal>
   )
 }
