@@ -162,6 +162,35 @@ const DICT: Dict = {
   },
   'cancel.keep': { en: 'Keep booking', ka: 'დატოვება', ru: 'Оставить запись' },
   'cancel.toStudio': { en: 'To the studio page', ka: 'სტუდიის გვერდზე', ru: 'На страницу студии' },
+
+  'review.heading': { en: 'Rate your specialist', ka: 'შეაფასეთ სპეციალისტი', ru: 'Оцените специалиста' },
+  'review.textLabel': {
+    en: 'Your review (optional)',
+    ka: 'თქვენი შეფასება (არასავალდებულო)',
+    ru: 'Ваш отзыв (необязательно)',
+  },
+  'review.textPh': {
+    en: 'Tell us how it went…',
+    ka: 'მოგვიყევით, როგორ ჩაიარა…',
+    ru: 'Расскажите, как всё прошло…',
+  },
+  'review.submit': { en: 'Submit rating', ka: 'შეფასების გაგზავნა', ru: 'Отправить оценку' },
+  'review.thanks.title': { en: 'Thank you!', ka: 'გმადლობთ!', ru: 'Спасибо!' },
+  'review.thanks.sub': {
+    en: 'Your rating has been saved. We appreciate your feedback.',
+    ka: 'თქვენი შეფასება შენახულია. მადლობა გამოხმაურებისთვის.',
+    ru: 'Ваша оценка сохранена. Спасибо за отзыв!',
+  },
+  'review.already': {
+    en: 'You have already rated this visit. Thank you!',
+    ka: 'თქვენ უკვე შეაფასეთ ეს ვიზიტი. გმადლობთ!',
+    ru: 'Вы уже оценили этот визит. Спасибо!',
+  },
+  'review.gone': {
+    en: 'This booking is no longer available for rating.',
+    ka: 'ეს ჯავშანი შესაფასებლად აღარ არის ხელმისაწვდომი.',
+    ru: 'Эта запись больше недоступна для оценки.',
+  },
   'reviews.title': { en: 'Reviews', ka: 'შეფასებები', ru: 'Отзывы' },
   'reviews.none': { en: 'No reviews yet', ka: 'ჯერ არ არის შეფასებები', ru: 'Пока нет отзывов' },
   'reviews.new': { en: 'No reviews', ka: 'შეფასებები არ არის', ru: 'Нет отзывов' },

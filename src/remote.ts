@@ -110,6 +110,37 @@ export async function cancelBookingPublic(id: string, token: string): Promise<vo
   await api('/api/bookings/cancel-public', { method: 'POST', body: JSON.stringify({ id, token }) })
 }
 
+export interface ReviewLookup {
+  booking: { id: string; date: string; start: string; end: string } | null
+  already: boolean
+  brand: string
+  specialistId: string
+  specialistAvatar: string | null
+  service: string
+  master: string
+  clientName: string
+}
+
+/** Открыть страницу оценки специалиста по ссылке из письма (id + токен). */
+export async function lookupReview(id: string, token: string): Promise<ReviewLookup> {
+  const qs = `?id=${encodeURIComponent(id)}&token=${encodeURIComponent(token)}`
+  return api('/api/bookings/review-lookup' + qs)
+}
+
+/** Клиент оставляет оценку специалиста по токену из письма. */
+export async function submitReview(
+  id: string,
+  token: string,
+  rating: number,
+  text: string,
+  authorName: string,
+): Promise<{ ok: boolean; already?: boolean }> {
+  return api('/api/reviews/submit', {
+    method: 'POST',
+    body: JSON.stringify({ id, token, rating, text, authorName }),
+  })
+}
+
 export async function login(username: string, password: string): Promise<RemoteUser> {
   const r = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) })
   setSession({ token: r.token, user: r.user })

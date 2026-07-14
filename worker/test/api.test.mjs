@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { handle } from '../src/api.js'
-import { emptyData, hashPassword, cancelToken } from '../src/logic.js'
+import { emptyData, hashPassword, cancelToken, reviewToken } from '../src/logic.js'
 
 // --- Фейковое хранилище в памяти (вместо GitHub) ---
 function makeStore(initial) {
@@ -239,6 +239,61 @@ test('self-cancel: lookup и cancel-public по токену из письма',
   const ok = await call(store, 'POST', '/api/bookings/cancel-public', { body: { id, token } })
   assert.equal(ok.status, 200)
   assert.equal(store._peek().bookings[0].status, 'cancelled')
+})
+
+test('review: lookup и submit по токену из письма создают отзыв', async () => {
+  const store = await seededStore()
+  const r1 = await call(store, 'POST', '/api/bookings', {
+    body: { specialistId: 'p1', serviceId: 's1', date: '2026-07-13', start: '10:00', clientName: 'Мария', clientPhone: '+1', clientEmail: 'c@x.com', consent: true },
+  })
+  const id = r1.body.booking.id
+  const token = await reviewToken(ENV.SESSION_SECRET, id)
+  // неверный токен — 403
+  const bad = await call(store, 'GET', `/api/bookings/review-lookup?id=${id}&token=nope`)
+  assert.equal(bad.status, 403)
+  // верный — отдаёт мастера/услугу, ещё не оценено, имя клиента для подстановки
+  const look = await call(store, 'GET', `/api/bookings/review-lookup?id=${id}&token=${encodeURIComponent(token)}`)
+  assert.equal(look.status, 200)
+  assert.equal(look.body.already, false)
+  assert.ok(look.body.master.length > 0)
+  assert.equal(look.body.clientName, 'Мария')
+  // невалидная оценка — 400
+  const badRating = await call(store, 'POST', '/api/reviews/submit', { body: { id, token, rating: 9, text: 'x' } })
+  assert.equal(badRating.status, 400)
+  // валидная оценка — создаёт отзыв, привязанный к специалисту, и помечает запись
+  const ok = await call(store, 'POST', '/api/reviews/submit', { body: { id, token, rating: 5, text: 'Супер', authorName: 'Мария' } })
+  assert.equal(ok.status, 200)
+  assert.equal(store._peek().reviews.length, 1)
+  assert.equal(store._peek().reviews[0].specialistId, 'p1')
+  assert.equal(store._peek().reviews[0].rating, 5)
+  assert.ok(store._peek().bookings[0].reviewSubmittedAt)
+  // отзыв виден на витрине
+  const pub = await call(store, 'GET', '/api/public')
+  assert.equal(pub.body.reviews.length, 1)
+  // повторная отправка — идемпотентно (already), второй отзыв не создаётся
+  const again = await call(store, 'POST', '/api/reviews/submit', { body: { id, token, rating: 4, text: 'ещё' } })
+  assert.equal(again.status, 200)
+  assert.equal(again.body.already, true)
+  assert.equal(store._peek().reviews.length, 1)
+  // lookup теперь показывает already
+  const look2 = await call(store, 'GET', `/api/bookings/review-lookup?id=${id}&token=${encodeURIComponent(token)}`)
+  assert.equal(look2.body.already, true)
+})
+
+test('review: отменённую запись оценить нельзя', async () => {
+  const store = await seededStore()
+  const r1 = await call(store, 'POST', '/api/bookings', {
+    body: { specialistId: 'p1', serviceId: 's1', date: '2026-07-13', start: '10:00', clientName: 'М', clientPhone: '+1', clientEmail: 'c@x.com', consent: true },
+  })
+  const id = r1.body.booking.id
+  const token = await reviewToken(ENV.SESSION_SECRET, id)
+  const login = await call(store, 'POST', '/api/auth/login', { body: { username: 'owner', password: 'pw' } })
+  await call(store, 'POST', '/api/bookings/cancel', { token: login.body.token, body: { id } })
+  const look = await call(store, 'GET', `/api/bookings/review-lookup?id=${id}&token=${encodeURIComponent(token)}`)
+  assert.equal(look.body.booking, null)
+  const submit = await call(store, 'POST', '/api/reviews/submit', { body: { id, token, rating: 5 } })
+  assert.equal(submit.status, 404)
+  assert.equal(store._peek().reviews.length, 0)
 })
 
 test('GET /api/data: нужна сессия; секреты учёток не отдаются', async () => {

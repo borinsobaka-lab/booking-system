@@ -1788,6 +1788,41 @@ textarea {
   color: #f5b301;
 }
 
+/* ===== Публичная страница оценки специалиста ===== */
+.review-spec {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.review-spec .wiz-title {
+  margin: 8px 0 0;
+}
+.review-stars-big {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  font-size: 44px;
+  line-height: 1;
+  margin: 8px 0 22px;
+}
+.star-big {
+  border: none;
+  background: none;
+  color: #dcdcdc;
+  padding: 4px;
+  cursor: pointer;
+  transition: transform 0.1s ease, color 0.1s ease;
+}
+.star-big:active {
+  transform: scale(0.9);
+}
+.star-big.on {
+  color: #f5b301;
+}
+
 /* ===== Список отзывов (админка) ===== */
 .review-list {
   display: flex;

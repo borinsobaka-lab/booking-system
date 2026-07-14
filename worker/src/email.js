@@ -13,7 +13,7 @@
 //   CLIENT_BASE_URL  — адрес витрины (для ссылки «отменить запись»).
 //   SESSION_SECRET   — используется для подписи токена отмены.
 
-import { cancelToken } from './logic.js'
+import { cancelToken, reviewToken } from './logic.js'
 
 const RESEND_ENDPOINT = 'https://api.resend.com/emails'
 const LANG = 'en'
@@ -115,6 +115,13 @@ async function cancelUrl(env, booking) {
   return `${base}/#/cancel?id=${encodeURIComponent(booking.id)}&t=${encodeURIComponent(token)}`
 }
 
+async function reviewUrl(env, booking) {
+  if (!env.SESSION_SECRET || !env.CLIENT_BASE_URL) return null
+  const token = await reviewToken(env.SESSION_SECRET, booking.id)
+  const base = env.CLIENT_BASE_URL.replace(/\/+$/, '')
+  return `${base}/#/review?id=${encodeURIComponent(booking.id)}&t=${encodeURIComponent(token)}`
+}
+
 // --- Общий каркас письма ---
 
 const DISCLAIMER = `This email was sent automatically, you do not need to respond to it.<br><br>
@@ -146,7 +153,12 @@ function cancelButton(url) {
   return `<p style="margin:22px 0 4px"><a href="${esc(url)}" style="display:inline-block;background:#ffffff;border:1px solid #d0d0d0;color:#c0362c;text-decoration:none;padding:9px 18px;border-radius:8px;font-weight:400;font-size:14px">Cancel booking</a></p>`
 }
 
-function layout(ctx, { title, intro, cancelUrl: cUrl, showContacts, danger }) {
+function rateButton(url) {
+  if (!url) return ''
+  return `<p style="margin:22px 0 4px"><a href="${esc(url)}" style="display:inline-block;background:#3b3b3b;color:#ffffff;text-decoration:none;padding:11px 22px;border-radius:8px;font-weight:600;font-size:15px">Rate specialist</a></p>`
+}
+
+function layout(ctx, { title, intro, cancelUrl: cUrl, rateUrl: rUrl, showContacts, danger }) {
   return `<!doctype html><html><body style="margin:0;background:#f4f4f5;padding:24px;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#1c1c1e">
   <table role="presentation" width="100%" style="max-width:540px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden">
     <tr><td style="background:#3b3b3b;color:#fff;padding:20px 24px;font-size:18px;font-weight:700">${esc(ctx.brand)}</td></tr>
@@ -154,6 +166,7 @@ function layout(ctx, { title, intro, cancelUrl: cUrl, showContacts, danger }) {
       <h1 style="margin:0 0 8px;font-size:20px${danger ? ';color:#c0362c' : ''}">${esc(title)}</h1>
       <p style="margin:0 0 16px;color:#555;line-height:1.5">${intro}</p>
       ${infoTable(ctx)}
+      ${rateButton(rUrl)}
       ${cancelButton(cUrl)}
       ${showContacts ? contactsBlock(ctx) : ''}
     </td></tr>
@@ -235,6 +248,21 @@ export async function notifyBookingCancelled(env, data, booking) {
   await Promise.all(jobs)
 }
 
+/** Просьба оценить специалиста (вызывается из cron через 10 минут после сеанса). */
+export async function sendReviewRequest(env, data, booking) {
+  if (!env || !env.RESEND_API_KEY || !booking.clientEmail) return
+  const ctx = bookingContext(data, booking)
+  const rUrl = await reviewUrl(env, booking)
+  if (!rUrl) return // без ссылки письмо бессмысленно
+  const html = layout(ctx, {
+    title: 'How was your visit?',
+    intro: `Hello${ctx.clientName ? ', ' + esc(ctx.clientName) : ''}! Thank you for your visit. We'd love to hear how it went — please take a moment to rate your specialist.`,
+    rateUrl: rUrl,
+    showContacts: true,
+  })
+  await sendEmail(env, { to: booking.clientEmail, subject: `Rate your visit — ${ctx.brand}`, html })
+}
+
 /** Напоминание клиенту (вызывается из cron). */
 export async function sendReminder(env, data, booking) {
   if (!env || !env.RESEND_API_KEY || !booking.clientEmail) return
@@ -290,5 +318,41 @@ export async function runReminders(env, store, nowMs) {
     return data
   }, 'reminders: mark sent')
   for (const b of due) await sendReminder(env, saved, b)
+  return { sent: due.length }
+}
+
+// --- Просьба оценить специалиста (cron, через N минут после конца сеанса) ---
+
+// Верхняя граница окна: не рассылаем просьбы по давно прошедшим записям (защита
+// от «бэкфилла» при первом деплое). Cron идёт каждые 10 минут — 12 часов с запасом.
+const REVIEW_WINDOW_MS = 12 * 60 * 60_000
+
+/** Записи, для которых пора попросить оценку: сеанс закончился delayMinutes назад. */
+export function dueReviewRequests(data, nowMs, delayMinutes, tz) {
+  const nowWall = studioWallMs(nowMs, tz)
+  const delay = (delayMinutes || 10) * 60_000
+  return (data.bookings || []).filter((b) => {
+    if (b.reviewRequestSentAt || b.reviewSubmittedAt || !b.clientEmail || b.status === 'cancelled') return false
+    if (!b.end) return false
+    const endWall = wallMs(b.date, b.end)
+    return nowWall >= endWall + delay && nowWall < endWall + delay + REVIEW_WINDOW_MS
+  })
+}
+
+export async function runReviewRequests(env, store, nowMs) {
+  if (!env || !env.RESEND_API_KEY) return { sent: 0 }
+  const delay = Number(env.REVIEW_DELAY_MINUTES) || 10
+  const tz = env.STUDIO_TZ
+  let due = []
+  let saved = null
+  await store.update((data) => {
+    due = dueReviewRequests(data, nowMs, delay, tz)
+    if (due.length === 0) return null
+    const ids = new Set(due.map((b) => b.id))
+    for (const b of data.bookings) if (ids.has(b.id)) b.reviewRequestSentAt = nowMs
+    saved = data
+    return data
+  }, 'review requests: mark sent')
+  for (const b of due) await sendReviewRequest(env, saved, b)
   return { sent: due.length }
 }

@@ -80,6 +80,15 @@ export async function verifyCancelToken(secret, id, token) {
   return (await hmac(secret, `cancel:${id}`)) === token
 }
 
+/** Токен для страницы оценки специалиста (в ссылке из письма-просьбы оценить). */
+export async function reviewToken(secret, id) {
+  return hmac(secret, `review:${id}`)
+}
+export async function verifyReviewToken(secret, id, token) {
+  if (!secret || !token || !id) return false
+  return (await hmac(secret, `review:${id}`)) === token
+}
+
 /** Проверить токен. Возвращает payload или null. */
 export async function verifySession(secret, token, nowMs) {
   if (!token || typeof token !== 'string' || !token.includes('.')) return null

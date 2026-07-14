@@ -95,6 +95,16 @@ export function ClientApp({ path }: { path: string }) {
     )
   }
 
+  // Оценка специалиста по ссылке из письма: #/review?id=..&t=..
+  if (path.startsWith('/review')) {
+    const q = new URLSearchParams(path.split('?')[1] || '')
+    return (
+      <div className="client">
+        <ReviewScreen id={q.get('id') || ''} token={q.get('t') || ''} />
+      </div>
+    )
+  }
+
   // В процессе записи — своя компактная прилипающая шапка (внутри BookingWizard).
   if (screen.kind === 'wizard') {
     return (
@@ -389,6 +399,169 @@ function CancelScreen({ id, token }: { id: string; token: string }) {
               </button>
               <button className="btn btn-block" onClick={() => navigate('/')}>
                 {t('cancel.keep')}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </>
+  )
+}
+
+// Страница оценки специалиста (открывается по ссылке из письма-просьбы оценить).
+type ReviewState =
+  | { kind: 'loading' }
+  | { kind: 'error' }
+  | { kind: 'gone' }
+  | { kind: 'already' }
+  | { kind: 'ready'; info: remote.ReviewLookup }
+  | { kind: 'done' }
+
+function ReviewScreen({ id, token }: { id: string; token: string }) {
+  const { t } = useI18n()
+  const [state, setState] = useState<ReviewState>({ kind: 'loading' })
+  const [rating, setRating] = useState(0)
+  const [text, setText] = useState('')
+  const [name, setName] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    if (!isRemote() || !id || !token) {
+      setState({ kind: 'error' })
+      return
+    }
+    let alive = true
+    remote
+      .lookupReview(id, token)
+      .then((r) => {
+        if (!alive) return
+        if (!r.booking) return setState({ kind: 'gone' })
+        if (r.already) return setState({ kind: 'already' })
+        setName(r.clientName || '')
+        setState({ kind: 'ready', info: r })
+      })
+      .catch(() => alive && setState({ kind: 'error' }))
+    return () => {
+      alive = false
+    }
+  }, [id, token])
+
+  const submit = async () => {
+    if (rating < 1) return
+    setBusy(true)
+    try {
+      const r = await remote.submitReview(id, token, rating, text.trim(), name.trim())
+      setState(r.already ? { kind: 'already' } : { kind: 'done' })
+    } catch {
+      setState({ kind: 'error' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const toStudio = (
+    <button className="btn btn-block" onClick={() => navigate('/')}>
+      {t('cancel.toStudio')}
+    </button>
+  )
+
+  const brand = state.kind === 'ready' ? state.info.brand : 'NEBA'
+
+  return (
+    <>
+      <header className="client-banner">
+        <LangSelect className="banner-lang" />
+        <div className="client-banner-overlay">
+          <h1 className="brand-name">{brand}</h1>
+        </div>
+      </header>
+      <div className="client-content">
+        <div className="cancel-page">
+          {state.kind === 'loading' && (
+            <div className="empty">
+              <div className="spinner" />
+              <p className="muted">{t('cancel.loading')}</p>
+            </div>
+          )}
+          {state.kind === 'error' && (
+            <div className="empty">
+              <div className="empty-emoji">
+                <Icon name="lock" size={44} />
+              </div>
+              <p>{t('cancel.invalid')}</p>
+              {toStudio}
+            </div>
+          )}
+          {state.kind === 'gone' && (
+            <div className="empty">
+              <div className="empty-emoji">
+                <Icon name="message" size={44} />
+              </div>
+              <p>{t('review.gone')}</p>
+              {toStudio}
+            </div>
+          )}
+          {state.kind === 'already' && (
+            <div className="done">
+              <div className="done-check">✓</div>
+              <h2>{t('review.thanks.title')}</h2>
+              <p className="muted">{t('review.already')}</p>
+              {toStudio}
+            </div>
+          )}
+          {state.kind === 'done' && (
+            <div className="done">
+              <div className="done-check">✓</div>
+              <h2>{t('review.thanks.title')}</h2>
+              <p className="muted">{t('review.thanks.sub')}</p>
+              {toStudio}
+            </div>
+          )}
+          {state.kind === 'ready' && (
+            <>
+              <div className="review-spec">
+                <Avatar src={state.info.specialistAvatar} name={state.info.master} size={72} />
+                <h2 className="wiz-title">{t('review.heading')}</h2>
+                <p className="muted">
+                  {state.info.master}
+                  {state.info.service ? ` · ${state.info.service}` : ''}
+                </p>
+              </div>
+
+              <div className="review-stars-big">
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    className={`star-big${n <= rating ? ' on' : ''}`}
+                    onClick={() => setRating(n)}
+                    aria-label={`${n}`}
+                  >
+                    ★
+                  </button>
+                ))}
+              </div>
+
+              <div className="field">
+                <span className="field-label">{t('label.name')}</span>
+                <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t('form.namePh')} />
+              </div>
+              <div className="field">
+                <span className="field-label">{t('review.textLabel')}</span>
+                <textarea
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  rows={4}
+                  placeholder={t('review.textPh')}
+                />
+              </div>
+
+              <button
+                className="btn btn-primary btn-block btn-lg"
+                disabled={busy || rating < 1}
+                onClick={submit}
+              >
+                {t('review.submit')}
               </button>
             </>
           )}

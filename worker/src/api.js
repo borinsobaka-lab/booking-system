@@ -11,6 +11,7 @@ import {
   signSession,
   verifySession,
   verifyCancelToken,
+  verifyReviewToken,
   uid,
 } from './logic.js'
 import { notifyBookingCreated, notifyBookingCancelled } from './email.js'
@@ -246,6 +247,87 @@ export async function handle(request, env, deps) {
       }, 'booking: cancel by client')
       if (!removed) return json({ ok: true, already: true }, 200, env, request)
       await notifyBookingCancelled(env, savedData, removed)
+      return json({ ok: true }, 200, env, request)
+    }
+
+    // --- Клиент открывает страницу оценки по ссылке из письма (токен) ---
+    if (path === '/api/bookings/review-lookup' && method === 'GET') {
+      const id = url.searchParams.get('id') || ''
+      const token = url.searchParams.get('token') || ''
+      if (!(await verifyReviewToken(env.SESSION_SECRET, id, token)))
+        return json({ error: 'Недействительная ссылка' }, 403, env, request)
+      const { data } = await store.get()
+      const b = (data.bookings || []).find((x) => x.id === id)
+      const nm = (v) => (typeof v === 'string' ? v : v ? v.en || v.ru || v.ka || '' : '')
+      if (!b || b.status === 'cancelled') return json({ ok: true, booking: null }, 200, env, request)
+      const svc = (data.services || []).find((s) => s.id === b.serviceId)
+      const sp = (data.specialists || []).find((s) => s.id === b.specialistId)
+      return json(
+        {
+          ok: true,
+          booking: { id: b.id, date: b.date, start: b.start, end: b.end },
+          already: !!b.reviewSubmittedAt,
+          brand: nm(data.brand && data.brand.name) || 'NEBA',
+          specialistId: b.specialistId,
+          specialistAvatar: sp ? sp.avatar || null : null,
+          service: svc ? nm(svc.name) : '',
+          master: sp ? `${nm(sp.firstName)} ${nm(sp.lastName)}`.trim() : '',
+          clientName: b.clientName || '',
+        },
+        200,
+        env,
+        request,
+      )
+    }
+
+    // --- Клиент оставляет оценку специалиста по токену из письма ---
+    if (path === '/api/reviews/submit' && method === 'POST') {
+      const body = await request.json().catch(() => null)
+      const id = body && body.id
+      const token = body && body.token
+      if (!(await verifyReviewToken(env.SESSION_SECRET, id, token)))
+        return json({ error: 'Недействительная ссылка' }, 403, env, request)
+      const rating = Math.round(Number(body && body.rating))
+      if (!(rating >= 1 && rating <= 5)) return json({ error: 'Поставьте оценку от 1 до 5' }, 400, env, request)
+
+      let result = null
+      await store.update((data) => {
+        const bk = (data.bookings || []).find((x) => x.id === id)
+        if (!bk || bk.status === 'cancelled') {
+          result = 'gone'
+          return null
+        }
+        if (bk.reviewSubmittedAt) {
+          result = 'already'
+          return null
+        }
+        const authorName = (body.authorName ? String(body.authorName) : bk.clientName || '').slice(0, 200).trim()
+        // Дата отзыва — по часам салона (YYYY-MM-DD).
+        const date = new Intl.DateTimeFormat('en-CA', {
+          timeZone: env.STUDIO_TZ || 'Asia/Tbilisi',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+        }).format(new Date(now()))
+        const review = {
+          id: uid(now(), rnd()),
+          specialistId: bk.specialistId,
+          authorName: authorName || 'Client',
+          rating,
+          text: body.text ? String(body.text).slice(0, 2000).trim() : '',
+          date,
+          avatar: null,
+          createdAt: now(),
+        }
+        if (!Array.isArray(data.reviews)) data.reviews = []
+        data.reviews.push(review)
+        bk.reviewSubmittedAt = now()
+        result = 'ok'
+        return data
+      }, 'review: submit by client')
+
+      if (result === 'gone') return json({ error: 'Запись не найдена' }, 404, env, request)
+      if (result === 'already') return json({ ok: true, already: true }, 200, env, request)
       return json({ ok: true }, 200, env, request)
     }
 

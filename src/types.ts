@@ -126,6 +126,10 @@ export interface Booking {
   lang?: Lang
   /** Когда отправлено напоминание «за час» (защита от повторной отправки). */
   reminderSentAt?: number
+  /** Когда отправлена просьба оценить специалиста (защита от повторной отправки). */
+  reviewRequestSentAt?: number
+  /** Когда клиент оставил оценку по этой записи (один отзыв на запись). */
+  reviewSubmittedAt?: number
   createdAt: number
 }
 
