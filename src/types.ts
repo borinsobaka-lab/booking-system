@@ -30,6 +30,13 @@ export interface User {
   createdAt: number
 }
 
+/** Настройки записи салона (правила онлайн-записи для клиентов). */
+export interface Settings {
+  /** За сколько минут до начала сеанса клиент ещё может записаться онлайн.
+   *  0 — без ограничения. Не даёт записываться «через 10 минут». */
+  minLeadMinutes: number
+}
+
 /** Бренд/салон — то, что видит клиент на баннере. */
 export interface Brand {
   name: LocalizedString
@@ -136,6 +143,7 @@ export interface DB {
   version: number
   users: User[]
   brand: Brand
+  settings: Settings
   services: Service[]
   specialists: Specialist[]
   schedules: DaySchedule[]

@@ -94,6 +94,7 @@ export function publicToDB(pub: any): DB {
     version: 1,
     users: [],
     brand: pub.brand,
+    settings: pub.settings ?? { minLeadMinutes: 0 },
     services: pub.services ?? [],
     specialists: (pub.specialists ?? []).map((s: any) => ({ ...s, createdAt: s.createdAt ?? 0 })),
     schedules: pub.schedules ?? [],

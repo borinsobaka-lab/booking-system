@@ -5,6 +5,7 @@ import {
   toPublic,
   stripUserSecrets,
   isSlotFree,
+  leadOk,
   addMinutes,
   verifyPassword,
   signSession,
@@ -86,6 +87,12 @@ export async function handle(request, env, deps) {
           failReason = 'Это время уже занято'
           return null
         }
+        // Правило салона: нельзя записаться слишком близко к началу сеанса.
+        const minLead = (data.settings && data.settings.minLeadMinutes) || 0
+        if (!leadOk(minLead, date, start, now(), env.STUDIO_TZ)) {
+          failReason = 'Онлайн-запись на это время уже закрыта — выберите время попозже'
+          return null
+        }
         created = {
           id: uid(now(), rnd()),
           specialistId,
@@ -149,6 +156,7 @@ export async function handle(request, env, deps) {
       await store.update((current) => {
         const next = { ...current }
         next.brand = incoming.brand ?? current.brand
+        next.settings = incoming.settings ?? current.settings
         next.services = incoming.services ?? current.services
         next.specialists = incoming.specialists ?? current.specialists
         next.schedules = incoming.schedules ?? current.schedules

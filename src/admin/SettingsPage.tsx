@@ -1,7 +1,19 @@
 import { useState } from 'react'
-import { useDB, updateBrand } from '../db'
+import { useDB, updateBrand, updateSettings } from '../db'
 import { Field, ImagePicker, LangTabs, setLoc } from '../ui'
 import type { Lang } from '../types'
+
+// Пресеты минимального запаса до записи (в минутах). 0 — без ограничения.
+const LEAD_OPTIONS: { value: number; label: string }[] = [
+  { value: 0, label: 'Без ограничения' },
+  { value: 30, label: 'За 30 минут' },
+  { value: 60, label: 'За 1 час' },
+  { value: 120, label: 'За 2 часа' },
+  { value: 180, label: 'За 3 часа' },
+  { value: 360, label: 'За 6 часов' },
+  { value: 720, label: 'За 12 часов' },
+  { value: 1440, label: 'За 1 день' },
+]
 
 /** Настройки бренда — то, что клиент видит на витрине записи. */
 export function SettingsPage() {
@@ -75,6 +87,32 @@ export function SettingsPage() {
         </Field>
 
         {saved && <div className="saved-hint">Сохранено ✓</div>}
+      </div>
+
+      <header className="page-head">
+        <h1>Запись</h1>
+      </header>
+      <div className="settings-card">
+        <p className="muted">Правила онлайн-записи для клиентов на витрине.</p>
+        <Field label="Минимальный запас до начала сеанса">
+          <select
+            value={db.settings.minLeadMinutes}
+            onChange={(e) => {
+              updateSettings({ minLeadMinutes: Number(e.target.value) })
+              flash()
+            }}
+          >
+            {LEAD_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <p className="muted small">
+          Клиент не сможет записаться, если до начала сеанса осталось меньше этого времени
+          (например, чтобы не бронировали визит «через 10 минут»). У администратора ограничения нет.
+        </p>
       </div>
     </div>
   )

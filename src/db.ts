@@ -5,7 +5,7 @@
 import { useSyncExternalStore } from 'react'
 import { isRemote } from './config'
 import { toLoc } from './localized'
-import type { Booking, Brand, DaySchedule, DB, Review, Service, Specialist, User } from './types'
+import type { Booking, Brand, DaySchedule, DB, Review, Service, Settings, Specialist, User } from './types'
 
 const STORAGE_KEY = 'booking-db-v1'
 
@@ -32,6 +32,10 @@ function emptyBrand(): Brand {
   }
 }
 
+function emptySettings(): Settings {
+  return { minLeadMinutes: 0 }
+}
+
 /** Миграция контента к LocalizedString (старые данные были обычными строками). */
 function migrateContent(db: DB): DB {
   db.brand = { ...db.brand, name: toLoc(db.brand.name), address: toLoc(db.brand.address) }
@@ -51,6 +55,7 @@ function emptyDB(): DB {
     version: 1,
     users: [],
     brand: emptyBrand(),
+    settings: emptySettings(),
     services: [],
     specialists: [],
     schedules: [],
@@ -80,7 +85,14 @@ function load(): DB {
     if (!raw) return withDemoOwner(emptyDB())
     const parsed = JSON.parse(raw) as DB
     // Мягкая миграция: дозаполняем отсутствующие поля + контент → LocalizedString.
-    return withDemoOwner(migrateContent({ ...emptyDB(), ...parsed, brand: { ...emptyBrand(), ...parsed.brand } }))
+    return withDemoOwner(
+      migrateContent({
+        ...emptyDB(),
+        ...parsed,
+        brand: { ...emptyBrand(), ...parsed.brand },
+        settings: { ...emptySettings(), ...parsed.settings },
+      }),
+    )
   } catch {
     return withDemoOwner(emptyDB())
   }
@@ -119,7 +131,12 @@ function emit() {
 
 /** Заменить всё состояние извне (загрузка с сервера). Не пишет обратно. */
 export function hydrate(next: DB): void {
-  state = migrateContent({ ...emptyDB(), ...next, brand: { ...emptyBrand(), ...next.brand } })
+  state = migrateContent({
+    ...emptyDB(),
+    ...next,
+    brand: { ...emptyBrand(), ...next.brand },
+    settings: { ...emptySettings(), ...next.settings },
+  })
   emit()
 }
 
@@ -188,6 +205,14 @@ export function deleteUser(id: string): void {
 export function updateBrand(patch: Partial<Brand>): void {
   mutate((db) => {
     db.brand = { ...db.brand, ...patch }
+  })
+}
+
+// --- Мутации: настройки записи ---
+
+export function updateSettings(patch: Partial<Settings>): void {
+  mutate((db) => {
+    db.settings = { ...db.settings, ...patch }
   })
 }
 

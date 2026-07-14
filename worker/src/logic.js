@@ -123,11 +123,43 @@ export function isSlotFree(data, specialistId, serviceId, date, start) {
   return !busy.some((r) => overlaps(cand, r))
 }
 
+// --- Минимальный запас до записи (правило онлайн-записи клиентов) ---
+
+// Стенные (wall-clock) миллисекунды: трактуем дату/время как UTC — сравнивать
+// разницу так корректно для зоны без переходов на летнее время (Тбилиси).
+function wallMs(date, start) {
+  const [y, mo, d] = date.split('-').map(Number)
+  const [h, mi] = start.split(':').map(Number)
+  return Date.UTC(y, mo - 1, d, h, mi)
+}
+
+// «Сейчас» по стенным часам салона (по умолчанию Asia/Tbilisi, без DST).
+function studioWallMs(nowMs, tz) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz || 'Asia/Tbilisi',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(new Date(nowMs))
+  const g = (t) => Number(parts.find((p) => p.type === t).value)
+  return Date.UTC(g('year'), g('month') - 1, g('day'), g('hour'), g('minute'))
+}
+
+/** Достаточно ли запаса до начала сеанса, чтобы клиент мог записаться онлайн. */
+export function leadOk(minLeadMinutes, date, start, nowMs, tz) {
+  if (!minLeadMinutes || minLeadMinutes <= 0) return true
+  return wallMs(date, start) - studioWallMs(nowMs, tz) >= minLeadMinutes * 60_000
+}
+
 // --- Публичные данные (без персональных данных и учёток) ---
 
 export function toPublic(data) {
   return {
     brand: data.brand,
+    settings: data.settings || { minLeadMinutes: 0 },
     services: data.services,
     specialists: (data.specialists || []).map((s) => ({
       id: s.id,
@@ -176,6 +208,7 @@ export function emptyData() {
     version: 1,
     users: [],
     brand: { name: 'Массаж-студия', address: '', avatar: null, banner: null },
+    settings: { minLeadMinutes: 0 },
     services: [],
     specialists: [],
     schedules: [],

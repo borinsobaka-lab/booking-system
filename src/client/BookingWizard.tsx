@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useDB, ratingOf } from '../db'
 import { Avatar, Stars } from '../ui'
 import { RichTextView } from '../RichText'
-import { useI18n, fmtDuration, fmtPrice, fmtFull, fmtMonthYear, weekdayHeaders, fmtReviewCount, fmtDayShort } from '../i18n'
+import { useI18n, fmtDuration, fmtPrice, fmtFull, fmtMonthYear, weekdayHeaders, fmtReviewCount, fmtDayShort, LangSelect } from '../i18n'
 import { pick, specialistName } from '../localized'
 import { addMinutes, fromDateKey, toDateKey, todayKey } from '../time'
 import {
@@ -87,7 +87,10 @@ export function BookingWizard({
     <div className="wizard">
       {/* Компактная шапка + прогресс + «Назад» — закреплены при скролле */}
       <div className="wiz-sticky">
-        <CompactBrand onHome={onExit} />
+        <div className="wiz-brand-row">
+          <CompactBrand onHome={onExit} />
+          <LangSelect className="wiz-lang" />
+        </div>
         <div className="wizard-top">
           <button className="wiz-back" onClick={back}>
             ‹ {t('back')}
@@ -270,10 +273,13 @@ function ReviewsList({ specialistId }: { specialistId: string }) {
 }
 
 // --- Шаг: услуга (во всю ширину, широкая картинка, описание в 2 строки) ---
+// Выбор отмечается чекбоксом в углу карточки; переход — только по кнопке
+// «Продолжить». Так исключаются случайные нажатия и мгновенный переход.
 function ServiceStep({ sel, onPick }: { sel: Selection; onPick: (id: string) => void }) {
   const db = useDB()
   const { lang, t } = useI18n()
   const [expanded, setExpanded] = useState<string | null>(null)
+  const [picked, setPicked] = useState<string | null>(sel.serviceId ?? null)
   let list: Service[]
   if (sel.specialistId) list = servicesOf(sel.specialistId)
   else if (sel.date && sel.start) list = servicesBookableAt(sel.date, sel.start)
@@ -282,40 +288,59 @@ function ServiceStep({ sel, onPick }: { sel: Selection; onPick: (id: string) => 
   if (list.length === 0) return <Empty text={t('empty.noServices')} />
 
   return (
-    <div className="svc-cards">
-      {list.map((s) => {
-        const desc = pick(s.description, lang)
-        const isOpen = expanded === s.id
-        return (
-          <div key={s.id} className="svc-full" onClick={() => onPick(s.id)}>
-            <div className="svc-full-img" style={s.image ? { backgroundImage: `url(${s.image})` } : undefined}>
-              {!s.image && <span>💆</span>}
-            </div>
-            <div className="svc-full-body">
-              <div className="svc-full-head">
-                <div className="svc-full-title">{pick(s.name, lang)}</div>
-                <div className="svc-full-price">{fmtPrice(s.price, lang)}</div>
+    <>
+      <div className="svc-cards">
+        {list.map((s) => {
+          const desc = pick(s.description, lang)
+          const isOpen = expanded === s.id
+          const isPicked = picked === s.id
+          return (
+            <div
+              key={s.id}
+              className={`svc-full${isPicked ? ' selected' : ''}`}
+              role="button"
+              aria-pressed={isPicked}
+              onClick={() => setPicked(s.id)}
+            >
+              <div className="svc-full-img" style={s.image ? { backgroundImage: `url(${s.image})` } : undefined}>
+                {!s.image && <span>💆</span>}
               </div>
-              <div className="svc-full-dur">⏱ {fmtDuration(s.durationMin, lang)}</div>
-              {desc && (
-                <>
-                  <div className={`svc-full-desc${isOpen ? ' open' : ''}`}>{desc}</div>
-                  <button
-                    className="linkbtn svc-full-more"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setExpanded(isOpen ? null : s.id)
-                    }}
-                  >
-                    {isOpen ? t('less') : t('more')}
-                  </button>
-                </>
-              )}
+              <span className={`svc-check${isPicked ? ' on' : ''}`} aria-hidden>
+                {isPicked ? '✓' : ''}
+              </span>
+              <div className="svc-full-body">
+                <div className="svc-full-head">
+                  <div className="svc-full-title">{pick(s.name, lang)}</div>
+                  <div className="svc-full-price">{fmtPrice(s.price, lang)}</div>
+                </div>
+                <div className="svc-full-dur">⏱ {fmtDuration(s.durationMin, lang)}</div>
+                {desc && (
+                  <>
+                    <div className={`svc-full-desc${isOpen ? ' open' : ''}`}>{desc}</div>
+                    <button
+                      className="linkbtn svc-full-more"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setExpanded(isOpen ? null : s.id)
+                      }}
+                    >
+                      {isOpen ? t('less') : t('more')}
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
-          </div>
-        )
-      })}
-    </div>
+          )
+        })}
+      </div>
+      {picked && (
+        <div className="wiz-footer">
+          <button className="btn btn-primary btn-block btn-lg" onClick={() => onPick(picked)}>
+            {t('continue')}
+          </button>
+        </div>
+      )}
+    </>
   )
 }
 
@@ -481,7 +506,7 @@ function ConfirmStep({
       </label>
       <label className="field">
         <span className="field-label">{t('label.email')}</span>
-        <input type="email" value={form.clientEmail} onChange={(e) => set('clientEmail', e.target.value)} placeholder="you@example.com" />
+        <input type="email" value={form.clientEmail} onChange={(e) => set('clientEmail', e.target.value)} placeholder={t('form.emailPh')} />
         {!emailValid && <span className="field-error">{t('form.emailErr')}</span>}
       </label>
       <label className="field">

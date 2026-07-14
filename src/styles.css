@@ -911,27 +911,27 @@ textarea {
 }
 
 /* ===== Переключатель языка (клиент) ===== */
-.lang-switcher {
+/* Живёт в шапке рядом с логотипом — отдельной полосы под язык больше нет. */
+.banner-lang {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+  /* Поверх фото — чуть плотнее подложка для читаемости. */
+  background-color: rgba(255, 255, 255, 0.92);
+}
+.wiz-brand-row {
   display: flex;
-  justify-content: flex-end;
-  gap: 6px;
-  padding: 8px 12px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
+  align-items: center;
+  gap: 8px;
+  padding-right: 12px;
 }
-.lang-btn {
-  border: 1.5px solid var(--border);
-  background: var(--surface);
-  border-radius: 9px;
-  padding: 6px 12px;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--muted);
+.wiz-brand-row .wiz-brand {
+  flex: 1;
+  min-width: 0;
 }
-.lang-btn.active {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
+.wiz-lang {
+  flex: none;
 }
 
 /* ===== Вкладки языков (заполнение контента в админке) ===== */
@@ -1445,14 +1445,42 @@ textarea {
   gap: 16px;
 }
 .svc-full {
+  position: relative;
   border: 1.5px solid var(--border);
   border-radius: 16px;
   overflow: hidden;
   background: var(--surface);
   cursor: pointer;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 .svc-full:hover {
+  border-color: var(--accent);
+}
+.svc-full.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1.5px var(--accent);
+}
+/* Чекбокс выбора услуги в правом нижнем углу карточки. */
+.svc-check {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  transition: background 0.15s, border-color 0.15s;
+}
+.svc-check.on {
+  background: var(--accent);
   border-color: var(--accent);
 }
 .svc-full-img {
@@ -1863,8 +1891,9 @@ textarea {
   font-size: 13px;
 }
 .form-section-title {
-  font-size: 16px;
-  margin: 6px 0 12px;
+  /* Один размер со всеми заголовками шагов записи (.wiz-title). */
+  font-size: 22px;
+  margin: 18px 0 12px;
 }
 .field-error {
   display: block;

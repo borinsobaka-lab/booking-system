@@ -3,7 +3,7 @@
 
 import { getState } from '../db'
 import { freeSlots, isSlotFree } from '../availability'
-import { addDays, todayKey } from '../time'
+import { addDays, fromDateKey, todayKey } from '../time'
 import type { Service, Specialist } from '../types'
 
 export interface Selection {
@@ -32,17 +32,23 @@ export function servicesOf(specialistId: string): Service[] {
   return services().filter((s) => sp.serviceIds.includes(s.id))
 }
 
+/**
+ * Проходит ли слот минимальный запас времени до начала (правило онлайн-записи):
+ * клиент не может записаться позже, чем за settings.minLeadMinutes до сеанса.
+ * 0 — без ограничения. Считаем в локальном времени (совпадает с временем салона).
+ */
+export function passesLead(date: string, start: string): boolean {
+  const min = getState().settings?.minLeadMinutes ?? 0
+  if (min <= 0) return true
+  const at = fromDateKey(date)
+  const [h, m] = start.split(':').map(Number)
+  at.setHours(h, m, 0, 0)
+  return at.getTime() - Date.now() >= min * 60_000
+}
+
 /** Есть ли доступность в этот день при известных ограничениях (услуга/специалист). */
 export function dayAvailable(date: string, sel: Selection): boolean {
-  const svcs = sel.serviceId ? services().filter((s) => s.id === sel.serviceId) : services()
-  const specs = sel.specialistId ? specialists().filter((s) => s.id === sel.specialistId) : specialists()
-  for (const sp of specs) {
-    for (const svc of svcs) {
-      if (!sp.serviceIds.includes(svc.id)) continue
-      if (freeSlots(sp.id, date, svc.durationMin).length > 0) return true
-    }
-  }
-  return false
+  return startsFor(date, sel).length > 0
 }
 
 /** Доступные времена начала на дату при известных ограничениях. */
@@ -53,7 +59,9 @@ export function startsFor(date: string, sel: Selection): string[] {
   for (const sp of specs) {
     for (const svc of svcs) {
       if (!sp.serviceIds.includes(svc.id)) continue
-      for (const slot of freeSlots(sp.id, date, svc.durationMin)) set.add(slot.start)
+      for (const slot of freeSlots(sp.id, date, svc.durationMin)) {
+        if (passesLead(date, slot.start)) set.add(slot.start)
+      }
     }
   }
   return [...set].sort()
@@ -103,6 +111,7 @@ export function nearestSlots(
   for (let i = 0; i < horizonDays; i++) {
     let starts = freeSlots(specialistId, day, duration).map((s) => s.start)
     if (day === today) starts = starts.filter((s) => s > now)
+    starts = starts.filter((s) => passesLead(day, s))
     if (starts.length) return { date: day, starts: starts.slice(0, count) }
     day = addDays(day, 1)
   }

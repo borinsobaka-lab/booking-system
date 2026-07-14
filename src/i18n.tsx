@@ -102,7 +102,8 @@ const DICT: Dict = {
   'label.comment': { en: 'Comment', ka: 'კომენტარი', ru: 'Комментарий' },
 
   'form.yourData': { en: 'Your details', ka: 'თქვენი მონაცემები', ru: 'Ваши данные' },
-  'form.namePh': { en: 'How should we address you', ka: 'როგორ მოგმართოთ', ru: 'Как к вам обращаться' },
+  'form.namePh': { en: 'Enter name', ka: 'შეიყვანეთ სახელი', ru: 'Введите имя' },
+  'form.emailPh': { en: 'Enter email', ka: 'შეიყვანეთ ელფოსტა', ru: 'Введите email' },
   'form.emailErr': { en: 'Check the email address', ka: 'შეამოწმეთ ელფოსტა', ru: 'Проверьте адрес почты' },
   'form.commentPh': {
     en: 'Any wishes (optional)',
@@ -236,4 +237,23 @@ export function useI18n(): I18nValue {
   const ctx = useContext(I18nContext)
   if (!ctx) throw new Error('useI18n вне I18nProvider')
   return ctx
+}
+
+/** Компактный выпадающий переключатель языка (EN/GE/RU). */
+export function LangSelect({ className }: { className?: string }) {
+  const { lang, setLang } = useI18n()
+  return (
+    <select
+      className={`lang-select${className ? ` ${className}` : ''}`}
+      value={lang}
+      onChange={(e) => setLang(e.target.value as Lang)}
+      aria-label="Language"
+    >
+      {LANGS.map((l) => (
+        <option key={l.code} value={l.code}>
+          {l.label}
+        </option>
+      ))}
+    </select>
+  )
 }

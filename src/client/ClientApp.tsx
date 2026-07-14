@@ -4,11 +4,11 @@ import { Avatar } from '../ui'
 import { isRemote } from '../config'
 import { enterClient } from '../session'
 import * as remote from '../remote'
-import { useI18n, fmtFull, LANGS } from '../i18n'
+import { useI18n, fmtFull, LangSelect } from '../i18n'
 import { pick, specialistName } from '../localized'
 import { addMinutes } from '../time'
 import { BookingWizard, type Flow } from './BookingWizard'
-import type { Booking, BookingForm, Lang } from '../types'
+import type { Booking, BookingForm } from '../types'
 
 type Screen =
   | { kind: 'landing' }
@@ -81,7 +81,6 @@ export function ClientApp(_props: { path: string }) {
   if (screen.kind === 'wizard') {
     return (
       <div className="client">
-        <LangSwitcher />
         <BookingWizard flow={screen.flow} onExit={() => setScreen({ kind: 'landing' })} onBooked={book} />
       </div>
     )
@@ -89,7 +88,6 @@ export function ClientApp(_props: { path: string }) {
 
   return (
     <div className="client">
-      <LangSwitcher />
       <Banner loading={loading} />
       <div className="client-content">
         {loading && (
@@ -111,21 +109,6 @@ export function ClientApp(_props: { path: string }) {
   )
 }
 
-function LangSwitcher() {
-  const { lang, setLang } = useI18n()
-  return (
-    <div className="lang-switcher">
-      <select className="lang-select" value={lang} onChange={(e) => setLang(e.target.value as Lang)} aria-label="Language">
-        {LANGS.map((l) => (
-          <option key={l.code} value={l.code}>
-            {l.label}
-          </option>
-        ))}
-      </select>
-    </div>
-  )
-}
-
 function Banner({ loading }: { loading: boolean }) {
   const db = useDB()
   const { lang } = useI18n()
@@ -138,6 +121,7 @@ function Banner({ loading }: { loading: boolean }) {
   if (loading) {
     return (
       <header className="client-banner">
+        <LangSelect className="banner-lang" />
         <div className="client-banner-overlay">
           <div className="skel skel-avatar" />
           <div className="skel skel-line" style={{ width: 160, height: 22, marginTop: 12 }} />
@@ -152,6 +136,7 @@ function Banner({ loading }: { loading: boolean }) {
       className="client-banner"
       style={brand.banner ? { backgroundImage: `url(${brand.banner})` } : undefined}
     >
+      <LangSelect className="banner-lang" />
       <div className="client-banner-overlay">
         <div className="brand-avatar">
           <Avatar src={brand.avatar} name={name} size={96} />
