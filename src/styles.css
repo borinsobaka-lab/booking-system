@@ -2168,6 +2168,56 @@ textarea {
   min-width: 0;
 }
 
+/* ===== История: журнал действий ===== */
+.history-log {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 640px;
+}
+.hist-event {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  text-align: left;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 10px 6px;
+  border-bottom: 1px solid var(--border);
+}
+.hist-event:hover {
+  background: #f7f8fa;
+  border-radius: 8px;
+}
+.hist-dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-top: 5px;
+}
+.hist-dot.c {
+  background: var(--ok);
+}
+.hist-dot.x {
+  background: var(--danger);
+}
+.hist-main {
+  flex: 1;
+  min-width: 0;
+}
+.hist-line {
+  font-size: 15px;
+}
+.hist-sub {
+  font-size: 13px;
+  margin-top: 2px;
+}
+.hist-time {
+  margin-top: 3px;
+}
+
 /* ===== Клиенты ===== */
 .client-list {
   display: flex;

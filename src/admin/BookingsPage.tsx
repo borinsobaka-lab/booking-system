@@ -5,7 +5,7 @@ import * as remote from '../remote'
 import { useAuth } from '../auth'
 import { useDeny } from './guard'
 import { Field, Modal, money, duration } from '../ui'
-import { todayKey, formatFull, weekdayLong, formatDayMonth, addMinutes } from '../time'
+import { todayKey, formatFull, weekdayLong, formatDayMonth, toDateKey, addMinutes } from '../time'
 import { freeSlots } from '../availability'
 import { pick, specialistName } from '../localized'
 import { Icon } from '../icons'
@@ -142,13 +142,7 @@ export function BookingsPage() {
           })}
         </div>
       ) : tab === 'history' ? (
-        <BookingTable
-          bookings={[...db.bookings].sort((a, b) =>
-            a.date !== b.date ? (a.date > b.date ? -1 : 1) : a.start > b.start ? -1 : 1,
-          )}
-          onOpen={setDetail}
-          emptyText="Записей пока нет."
-        />
+        <HistoryLog bookings={db.bookings} onOpen={setDetail} />
       ) : (
         <BookingTable
           bookings={db.bookings
@@ -196,6 +190,59 @@ function FeedCard({ booking, visit, onOpen }: { booking: Booking; visit?: Visit;
         </div>
       </div>
     </button>
+  )
+}
+
+function fmtStamp(ms?: number): string {
+  if (!ms) return ''
+  const d = new Date(ms)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${formatDayMonth(toDateKey(d))}, ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+interface Event {
+  key: string
+  type: 'created' | 'cancelled'
+  at: number
+  booking: Booking
+}
+
+/** Журнал действий: кто записался/отменил, новые сверху. */
+function HistoryLog({ bookings, onOpen }: { bookings: Booking[]; onOpen: (b: Booking) => void }) {
+  const db = useDB()
+  const events = useMemo(() => {
+    const evs: Event[] = []
+    for (const b of bookings) {
+      evs.push({ key: b.id + ':c', type: 'created', at: b.createdAt || 0, booking: b })
+      if (b.status === 'cancelled') evs.push({ key: b.id + ':x', type: 'cancelled', at: b.cancelledAt || b.createdAt || 0, booking: b })
+    }
+    return evs.sort((a, b) => b.at - a.at)
+  }, [bookings])
+
+  if (events.length === 0) return <div className="feed-empty muted">Действий пока нет.</div>
+  return (
+    <div className="history-log">
+      {events.map((e) => {
+        const svc = db.services.find((s) => s.id === e.booking.serviceId)
+        const sp = db.specialists.find((s) => s.id === e.booking.specialistId)
+        const cancelled = e.type === 'cancelled'
+        return (
+          <button className="hist-event" key={e.key} onClick={() => onOpen(e.booking)}>
+            <span className={`hist-dot ${cancelled ? 'x' : 'c'}`} />
+            <div className="hist-main">
+              <div className="hist-line">
+                <b>{e.booking.clientName || 'Клиент'}</b> {cancelled ? 'отменил запись' : 'записался'}
+              </div>
+              <div className="hist-sub muted">
+                {svc ? pick(svc.name, A) : 'услуга'} · {sp ? specialistName(sp, A) : '—'} · {formatDayMonth(e.booking.date)}{' '}
+                {e.booking.start}
+              </div>
+              {e.at > 0 && <div className="hist-time muted small">{fmtStamp(e.at)}</div>}
+            </div>
+          </button>
+        )
+      })}
+    </div>
   )
 }
 
