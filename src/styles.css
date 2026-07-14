@@ -1990,6 +1990,10 @@ textarea {
   margin: 4px 0 18px;
   cursor: pointer;
 }
+.consent a {
+  color: var(--accent-dark, #3b3b3b);
+  text-decoration: underline;
+}
 .consent input {
   width: auto;
   margin-top: 2px;

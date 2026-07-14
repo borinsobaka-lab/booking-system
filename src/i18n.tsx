@@ -111,11 +111,17 @@ const DICT: Dict = {
     ka: 'სურვილები (არასავალდებულო)',
     ru: 'Пожелания к записи (необязательно)',
   },
-  'form.consent': {
-    en: 'I agree to the processing of my personal data, including special categories, to make a booking.',
-    ka: 'ვეთანხმები ჩემი პერსონალური მონაცემების, მათ შორის სპეციალური კატეგორიების, დამუშავებას ჯავშნის გასაფორმებლად.',
-    ru: 'Я согласен(а) на обработку моих персональных данных, в том числе специальных категорий, для оформления записи.',
+  'form.consent.pre': {
+    en: 'I agree to the processing of my personal data, including special categories, to make a booking, in accordance with the ',
+    ka: 'ვეთანხმები ჩემი პერსონალური მონაცემების, მათ შორის სპეციალური კატეგორიების, დამუშავებას ჯავშნის გასაფორმებლად, ',
+    ru: 'Я согласен(а) на обработку моих персональных данных, в том числе специальных категорий, для оформления записи в соответствии с ',
   },
+  'form.consent.link': {
+    en: 'data processing policy',
+    ka: 'მონაცემთა დამუშავების პოლიტიკის',
+    ru: 'политикой обработки данных',
+  },
+  'form.consent.post': { en: '.', ka: ' შესაბამისად.', ru: '.' },
   'form.book': { en: 'Book now', ka: 'დაჯავშნა', ru: 'Забронировать' },
 
   'done.title': { en: "You're booked!", ka: 'თქვენ დაჯავშნილი ხართ!', ru: 'Вы записаны!' },

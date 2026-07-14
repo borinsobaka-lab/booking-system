@@ -576,7 +576,18 @@ function ConfirmStep({
 
       <label className="consent">
         <input type="checkbox" checked={form.consent} onChange={(e) => set('consent', e.target.checked)} />
-        <span>{t('form.consent')}</span>
+        <span>
+          {t('form.consent.pre')}
+          <a
+            href="https://neba.space/privacy"
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {t('form.consent.link')}
+          </a>
+          {t('form.consent.post')}
+        </span>
       </label>
 
       <div className="wiz-footer">
