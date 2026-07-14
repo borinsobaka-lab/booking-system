@@ -14,9 +14,8 @@ CORS_ORIGIN = "https://borinsobaka-lab.github.io"
 STUDIO_TZ = "Asia/Tbilisi"
 # Адрес витрины — для ссылки «отменить запись» в письмах.
 CLIENT_BASE_URL = "https://borinsobaka-lab.github.io/booking-system"
-# Отправитель писем. Для боевого режима — адрес на ПОДТВЕРЖДЁННОМ домене Resend.
-# Пока домен не подтверждён — оставьте onboarding@resend.dev (см. SETUP.md).
-EMAIL_FROM = "NEBA <onboarding@resend.dev>"
+# Отправитель писем — адрес на подтверждённом домене neba.space.
+EMAIL_FROM = "NEBA <noreply@neba.space>"
 
 # Cron: напоминания клиентам «за час». Каждые 10 минут проверяем ближайшие записи.
 [triggers]
