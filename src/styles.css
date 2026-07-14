@@ -1803,24 +1803,28 @@ textarea {
 .review-stars-big {
   display: flex;
   justify-content: center;
-  gap: 8px;
-  font-size: 44px;
-  line-height: 1;
-  margin: 8px 0 22px;
+  gap: 14px;
+  margin: 12px 0 26px;
 }
 .star-big {
   border: none;
   background: none;
-  color: #dcdcdc;
+  color: #d2d2d2;
+  font-size: 48px;
+  line-height: 1;
   padding: 4px;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
   transition: transform 0.1s ease, color 0.1s ease;
 }
-.star-big:active {
-  transform: scale(0.9);
+.star-big:hover {
+  color: #f0c85a;
 }
 .star-big.on {
   color: #f5b301;
+}
+.star-big:active {
+  transform: scale(0.88);
 }
 
 /* ===== Список отзывов (админка) ===== */
