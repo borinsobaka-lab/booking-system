@@ -222,6 +222,21 @@ textarea {
   box-shadow: var(--shadow-sm);
   font-weight: 600;
 }
+/* Цветовые метки режима рисования расписания (вместо эмодзи-квадратов). */
+.swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  vertical-align: -1px;
+  margin-right: 4px;
+}
+.swatch-work {
+  background: rgba(48, 164, 108, 0.9);
+}
+.swatch-break {
+  background: #f0a020;
+}
 
 /* ===== Аватар / картинки ===== */
 .avatar {
@@ -337,7 +352,9 @@ textarea {
   font-size: 17px;
 }
 .admin-brand-logo {
-  font-size: 22px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--accent-dark, #3b3b3b);
 }
 .admin-nav {
   display: flex;
@@ -366,9 +383,10 @@ textarea {
   font-weight: 600;
 }
 .admin-nav-icon {
-  font-size: 17px;
   width: 22px;
-  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .admin-user {
   display: flex;
@@ -429,6 +447,10 @@ textarea {
 .empty-emoji {
   font-size: 46px;
   margin-bottom: 12px;
+  display: flex;
+  justify-content: center;
+  color: var(--muted);
+  opacity: 0.7;
 }
 .spinner {
   width: 30px;
@@ -1072,6 +1094,10 @@ textarea {
   background: #ececec;
   align-self: center;
   justify-self: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-dark, #3b3b3b);
 }
 .entry-label {
   font-weight: 700;
@@ -1406,16 +1432,17 @@ textarea {
   display: inline-block;
   margin-top: 4px;
 }
-/* Круглая кнопка «i» на светло-серой подложке — понятно, что это кнопка. */
+/* Круглая кнопка «i» на светло-серой подложке — понятно, что это кнопка.
+   По размеру совпадает с чекбоксом выбора справа. */
 .spec-info-btn {
   flex: none;
-  width: 38px;
-  height: 38px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   border: none;
   background: #ececec;
   color: var(--text);
-  font-size: 17px;
+  font-size: 14px;
   font-style: italic;
   font-weight: 700;
   font-family: Georgia, 'Times New Roman', serif;
@@ -1429,9 +1456,12 @@ textarea {
   padding: 10px 14px 12px;
 }
 .spec-slots-label {
-  font-size: 12px;
-  color: var(--muted);
-  margin-bottom: 8px;
+  font-size: 15px;
+  color: var(--text);
+  margin-bottom: 10px;
+}
+.spec-slots-label b {
+  font-weight: 700;
 }
 .spec-slots-chips {
   display: flex;
@@ -1448,12 +1478,6 @@ textarea {
 }
 .spec-slot:hover {
   border-color: var(--accent);
-}
-/* «Другое время» — вариант чипа, ведёт на полный выбор даты и времени. */
-.spec-slot-other {
-  color: var(--accent-dark, var(--accent));
-  border-style: dashed;
-  font-weight: 700;
 }
 .spec-bio {
   display: flex;

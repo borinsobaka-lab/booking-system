@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useDB, deleteUser } from '../db'
+import { useDB, deleteUser, updateUser } from '../db'
 import { useAuth, roleLabel } from '../auth'
 import { Avatar, Field, Modal } from '../ui'
 import { pick, specialistName } from '../localized'
@@ -10,6 +10,7 @@ export function UsersPage() {
   const { user: me } = useAuth()
   const [creating, setCreating] = useState(false)
   const [resetting, setResetting] = useState<User | null>(null)
+  const [editingEmail, setEditingEmail] = useState<User | null>(null)
 
   return (
     <div className="page">
@@ -39,25 +40,22 @@ export function UsersPage() {
                 <div className="user-row-sub">
                   @{u.username} · {roleLabel(u.role)}
                   {spec && ` · профиль: ${specialistName(spec, 'ru')}`}
+                  {u.email && ` · ${u.email}`}
                 </div>
               </div>
               <div className="user-row-actions">
+                <button className="linkbtn" onClick={() => setEditingEmail(u)}>
+                  Почта
+                </button>
+                <button className="linkbtn" onClick={() => setResetting(u)}>
+                  Сменить пароль
+                </button>
                 {u.role !== 'owner' && (
-                  <>
-                    <button className="linkbtn" onClick={() => setResetting(u)}>
-                      Сменить пароль
-                    </button>
-                    <button
-                      className="linkbtn danger"
-                      onClick={() => confirm(`Удалить пользователя «${u.name}»?`) && deleteUser(u.id)}
-                    >
-                      Удалить
-                    </button>
-                  </>
-                )}
-                {u.role === 'owner' && (
-                  <button className="linkbtn" onClick={() => setResetting(u)}>
-                    Сменить пароль
+                  <button
+                    className="linkbtn danger"
+                    onClick={() => confirm(`Удалить пользователя «${u.name}»?`) && deleteUser(u.id)}
+                  >
+                    Удалить
                   </button>
                 )}
               </div>
@@ -68,7 +66,42 @@ export function UsersPage() {
 
       {creating && <UserCreator onClose={() => setCreating(false)} />}
       {resetting && <PasswordResetter user={resetting} onClose={() => setResetting(null)} />}
+      {editingEmail && <EmailEditor user={editingEmail} onClose={() => setEditingEmail(null)} />}
     </div>
+  )
+}
+
+function EmailEditor({ user, onClose }: { user: User; onClose: () => void }) {
+  const [email, setEmail] = useState(user.email ?? '')
+  const valid = email.trim() === '' || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+  const save = () => {
+    if (!valid) return
+    updateUser(user.id, { email: email.trim() || undefined })
+    onClose()
+  }
+  return (
+    <Modal title={`Почта · ${user.name}`} onClose={onClose}>
+      <div className="form">
+        <p className="muted small">Для уведомлений (о новых записях и т.п.). Клиентам не показывается.</p>
+        <Field label="Email">
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="name@example.com"
+          />
+        </Field>
+        {!valid && <div className="auth-error">Проверьте адрес почты</div>}
+        <div className="form-actions">
+          <button className="btn" onClick={onClose}>
+            Отмена
+          </button>
+          <button className="btn btn-primary" onClick={save} disabled={!valid}>
+            Сохранить
+          </button>
+        </div>
+      </div>
+    </Modal>
   )
 }
 
@@ -86,6 +119,7 @@ function UserCreator({ onClose }: { onClose: () => void }) {
   const { createStaff } = useAuth()
   const [role, setRole] = useState<Exclude<Role, 'owner'>>('master')
   const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState(genPassword())
   const [specialistId, setSpecialistId] = useState<string>('')
@@ -101,6 +135,7 @@ function UserCreator({ onClose }: { onClose: () => void }) {
       username,
       password,
       name,
+      email,
       specialistId: role === 'master' && specialistId ? specialistId : undefined,
     })
     setBusy(false)
@@ -167,6 +202,9 @@ function UserCreator({ onClose }: { onClose: () => void }) {
         </p>
         <Field label="Имя сотрудника">
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Например, Нино" />
+        </Field>
+        <Field label="Email (для уведомлений, необязательно)">
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" />
         </Field>
         {role === 'master' && (
           <Field label="Профиль специалиста (необязательно)">

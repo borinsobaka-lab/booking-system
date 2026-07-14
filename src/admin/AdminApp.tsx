@@ -12,17 +12,18 @@ import { UsersPage } from './UsersPage'
 import { SettingsPage } from './SettingsPage'
 import { ReviewsPage } from './ReviewsPage'
 import { Avatar } from '../ui'
+import { Icon, type IconName } from '../icons'
 
 type Tab = 'bookings' | 'services' | 'specialists' | 'schedule' | 'reviews' | 'users' | 'settings'
 
-const TABS: { id: Tab; path: string; label: string; icon: string; ownerOnly?: boolean }[] = [
-  { id: 'bookings', path: ADMIN_BASE, label: 'Записи', icon: '📅' },
-  { id: 'schedule', path: `${ADMIN_BASE}/schedule`, label: 'Расписание', icon: '🗓️' },
-  { id: 'services', path: `${ADMIN_BASE}/services`, label: 'Услуги', icon: '💆' },
-  { id: 'specialists', path: `${ADMIN_BASE}/specialists`, label: 'Специалисты', icon: '🧑‍⚕️' },
-  { id: 'reviews', path: `${ADMIN_BASE}/reviews`, label: 'Отзывы', icon: '💬' },
-  { id: 'users', path: `${ADMIN_BASE}/users`, label: 'Пользователи', icon: '🔑', ownerOnly: true },
-  { id: 'settings', path: `${ADMIN_BASE}/settings`, label: 'Бренд', icon: '🏷️', ownerOnly: true },
+const TABS: { id: Tab; path: string; label: string; icon: IconName; ownerOnly?: boolean }[] = [
+  { id: 'bookings', path: ADMIN_BASE, label: 'Записи', icon: 'calendarDays' },
+  { id: 'schedule', path: `${ADMIN_BASE}/schedule`, label: 'Расписание', icon: 'calendarClock' },
+  { id: 'services', path: `${ADMIN_BASE}/services`, label: 'Услуги', icon: 'sparkles' },
+  { id: 'specialists', path: `${ADMIN_BASE}/specialists`, label: 'Специалисты', icon: 'users' },
+  { id: 'reviews', path: `${ADMIN_BASE}/reviews`, label: 'Отзывы', icon: 'message' },
+  { id: 'users', path: `${ADMIN_BASE}/users`, label: 'Пользователи', icon: 'key', ownerOnly: true },
+  { id: 'settings', path: `${ADMIN_BASE}/settings`, label: 'Бренд', icon: 'tag', ownerOnly: true },
 ]
 
 function tabForPath(path: string): Tab {
@@ -75,7 +76,9 @@ export function AdminApp({ path }: { path: string }) {
     <div className="admin">
       <aside className="admin-side">
         <div className="admin-brand">
-          <span className="admin-brand-logo">💆</span>
+          <span className="admin-brand-logo">
+            <Icon name="flower" size={22} />
+          </span>
           <span className="admin-brand-name">Админка</span>
         </div>
         <nav className="admin-nav">
@@ -85,7 +88,9 @@ export function AdminApp({ path }: { path: string }) {
               className={`admin-nav-item${tab === t.id ? ' active' : ''}`}
               onClick={() => navigate(t.path)}
             >
-              <span className="admin-nav-icon">{t.icon}</span>
+              <span className="admin-nav-icon">
+                <Icon name={t.icon} size={19} />
+              </span>
               <span>{t.label}</span>
             </button>
           ))}
@@ -125,7 +130,7 @@ export function AdminApp({ path }: { path: string }) {
             className={`admin-bottomnav-item${tab === t.id ? ' active' : ''}`}
             onClick={() => navigate(t.path)}
           >
-            <span>{t.icon}</span>
+            <Icon name={t.icon} size={20} />
             <span className="admin-bottomnav-label">{t.label}</span>
           </button>
         ))}
@@ -138,7 +143,9 @@ function NoAccess() {
   return (
     <div className="page">
       <div className="empty">
-        <div className="empty-emoji">🔒</div>
+        <div className="empty-emoji">
+          <Icon name="lock" size={44} />
+        </div>
         <p>Этот раздел доступен только суперадминистратору.</p>
       </div>
     </div>

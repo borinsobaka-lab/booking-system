@@ -90,6 +90,20 @@ test('public: без учёток и персональных данных', asy
   assert.deepEqual(r.body.busy, [])
 })
 
+test('email: мастера/пользователи хранят email; в public его нет, админу виден', async () => {
+  const store = await seededStore()
+  store._peek().specialists[0].email = 'master@example.com'
+  store._peek().users[0].email = 'owner@example.com'
+  // публичные данные витрины — без email мастера
+  const pub = await call(store, 'GET', '/api/public')
+  assert.equal(JSON.stringify(pub.body).includes('master@example.com'), false)
+  // админу (после входа) email виден и у пользователя, и у специалиста
+  const login = await call(store, 'POST', '/api/auth/login', { body: { username: 'owner', password: 'pw' } })
+  const data = await call(store, 'GET', '/api/data', { token: login.body.token })
+  assert.equal(data.body.data.users[0].email, 'owner@example.com')
+  assert.equal(data.body.data.specialists[0].email, 'master@example.com')
+})
+
 test('booking: свободный слот — ок, повтор — 409, контакты не в public', async () => {
   const store = await seededStore()
   const payload = {

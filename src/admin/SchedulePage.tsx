@@ -4,6 +4,7 @@ import { Avatar } from '../ui'
 import { fromMinutes, toMinutes, startOfWeek, weekDays, todayKey, addDays, weekdayShort, formatDayMonth } from '../time'
 import { DAY_END_MIN, DAY_START_MIN, PX_PER_MIN, TIMELINE_HEIGHT, hourMarks, minToY, yToMin } from './timeline'
 import { pick, specialistName } from '../localized'
+import { Icon } from '../icons'
 import type { DaySchedule, Lang, TimeRange } from '../types'
 
 const A: Lang = 'ru' // отображение контента в админке
@@ -49,7 +50,7 @@ export function SchedulePage() {
           <h1>Расписание</h1>
         </header>
         <div className="empty">
-          <div className="empty-emoji">🗓️</div>
+          <div className="empty-emoji"><Icon name="calendarClock" size={44} /></div>
           <p>Сначала добавьте специалистов — тогда им можно будет задать расписание.</p>
         </div>
       </div>
@@ -116,10 +117,10 @@ export function SchedulePage() {
           <span className="muted small">Рисуем:</span>
           <div className="segmented">
             <button className={mode === 'work' ? 'active' : ''} onClick={() => setMode('work')}>
-              🟩 Рабочее время
+              <span className="swatch swatch-work" /> Рабочее время
             </button>
             <button className={mode === 'break' ? 'active' : ''} onClick={() => setMode('break')}>
-              🟧 Перерыв
+              <span className="swatch swatch-break" /> Перерыв
             </button>
           </div>
         </div>

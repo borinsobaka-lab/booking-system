@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useDB, saveReview, deleteReview, uid } from '../db'
 import { Avatar, Field, ImagePicker, Modal, Stars } from '../ui'
 import { specialistName } from '../localized'
+import { Icon } from '../icons'
 import { todayKey, formatFull } from '../time'
 import type { Lang, Review } from '../types'
 
@@ -38,12 +39,12 @@ export function ReviewsPage() {
 
       {db.specialists.length === 0 ? (
         <div className="empty">
-          <div className="empty-emoji">💬</div>
+          <div className="empty-emoji"><Icon name="message" size={44} /></div>
           <p>Сначала добавьте специалистов — отзывы привязываются к мастеру.</p>
         </div>
       ) : sorted.length === 0 ? (
         <div className="empty">
-          <div className="empty-emoji">💬</div>
+          <div className="empty-emoji"><Icon name="message" size={44} /></div>
           <p>Пока нет отзывов. Добавьте первый — он появится в карточке мастера.</p>
         </div>
       ) : (

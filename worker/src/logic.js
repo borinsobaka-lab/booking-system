@@ -198,6 +198,7 @@ export function stripUserSecrets(users) {
     role: u.role,
     username: u.username,
     name: u.name,
+    email: u.email,
     specialistId: u.specialistId,
     createdAt: u.createdAt,
   }))

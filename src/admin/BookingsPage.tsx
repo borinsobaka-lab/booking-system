@@ -6,6 +6,7 @@ import { todayKey, addDays, formatFull, toMinutes, addMinutes } from '../time'
 import { freeSlots } from '../availability'
 import { PX_PER_MIN, TIMELINE_HEIGHT, hourMarks, minToY } from './timeline'
 import { pick, specialistName } from '../localized'
+import { Icon } from '../icons'
 import type { Booking, Lang } from '../types'
 
 const A: Lang = 'ru' // отображение контента в админке
@@ -48,7 +49,7 @@ export function BookingsPage() {
 
       {db.specialists.length === 0 ? (
         <div className="empty">
-          <div className="empty-emoji">📅</div>
+          <div className="empty-emoji"><Icon name="calendarDays" size={44} /></div>
           <p>Добавьте специалистов и задайте им расписание — тогда здесь появятся рабочие дни и записи.</p>
         </div>
       ) : (

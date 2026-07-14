@@ -3,6 +3,7 @@ import { useDB, saveService, deleteService, uid } from '../db'
 import { Field, ImagePicker, Modal, money, duration, LangTabs, setLoc } from '../ui'
 import { pick } from '../localized'
 import { emptyLoc } from '../localized'
+import { Icon } from '../icons'
 import type { Lang, Service } from '../types'
 
 // В админке контент показываем на русском (с фолбэком).
@@ -33,7 +34,7 @@ export function ServicesPage() {
 
       {db.services.length === 0 ? (
         <div className="empty">
-          <div className="empty-emoji">💆</div>
+          <div className="empty-emoji"><Icon name="sparkles" size={44} /></div>
           <p>Пока нет ни одной услуги. Добавьте первую — она появится у клиентов.</p>
         </div>
       ) : (

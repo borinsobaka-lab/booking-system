@@ -3,6 +3,7 @@ import { useDB, saveSpecialist, deleteSpecialist, uid } from '../db'
 import { Avatar, Field, ImagePicker, Modal, LangTabs, setLoc } from '../ui'
 import { RichTextEditor } from '../RichText'
 import { pick, specialistName, emptyLoc } from '../localized'
+import { Icon } from '../icons'
 import type { Lang, Specialist } from '../types'
 
 const A: Lang = 'ru' // отображение в админке
@@ -33,7 +34,7 @@ export function SpecialistsPage() {
 
       {db.specialists.length === 0 ? (
         <div className="empty">
-          <div className="empty-emoji">🧑‍⚕️</div>
+          <div className="empty-emoji"><Icon name="users" size={44} /></div>
           <p>Добавьте специалистов — их можно ставить в расписание и записывать к ним клиентов.</p>
         </div>
       ) : (
@@ -119,6 +120,14 @@ function SpecialistEditor({ specialist, onClose }: { specialist: Specialist; onC
             value={sp.role[lang]}
             onChange={(e) => set('role', setLoc(sp.role, lang, e.target.value))}
             placeholder="Например, Массажист"
+          />
+        </Field>
+        <Field label="Email (для уведомлений, клиентам не показывается)">
+          <input
+            type="email"
+            value={sp.email ?? ''}
+            onChange={(e) => set('email', e.target.value)}
+            placeholder="name@example.com"
           />
         </Field>
         <div className="field">

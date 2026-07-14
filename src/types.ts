@@ -25,6 +25,8 @@ export interface User {
   passwordHash: string
   /** Отображаемое имя сотрудника. */
   name: string
+  /** Email для уведомлений (внутренний, клиентам не показывается). */
+  email?: string
   /** Для мастера — привязка к карточке специалиста (расписание, услуги). */
   specialistId?: ID
   createdAt: number
@@ -68,6 +70,8 @@ export interface Specialist {
   role: LocalizedString
   /** Биография / подробности — показывается в карточке специалиста у клиента. */
   bio: LocalizedString
+  /** Email мастера для уведомлений. ВНУТРЕННИЙ — клиентам на витрине не отдаётся. */
+  email?: string
   /** data-URL аватарки. */
   avatar: string | null
   /** Услуги, которые выполняет специалист. */

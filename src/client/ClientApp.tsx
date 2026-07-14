@@ -5,6 +5,7 @@ import { isRemote } from '../config'
 import { enterClient } from '../session'
 import * as remote from '../remote'
 import { useI18n, fmtFull, LangSelect } from '../i18n'
+import { Icon } from '../icons'
 import { pick, specialistName } from '../localized'
 import { addMinutes } from '../time'
 import { BookingWizard, type Flow } from './BookingWizard'
@@ -154,7 +155,7 @@ function Landing({ configured, onStart }: { configured: boolean; onStart: (flow:
     return (
       <div className="landing">
         <div className="empty">
-          <div className="empty-emoji">🛠️</div>
+          <div className="empty-emoji"><Icon name="wrench" size={44} /></div>
           <p>{t('notConfigured')}</p>
         </div>
       </div>
@@ -165,17 +166,23 @@ function Landing({ configured, onStart }: { configured: boolean; onStart: (flow:
       <p className="landing-lead">{t('landing.lead')}</p>
       <div className="entry-buttons">
         <button className="entry-btn" onClick={() => onStart('master')}>
-          <span className="entry-icon" aria-hidden />
+          <span className="entry-icon" aria-hidden>
+            <Icon name="user" size={30} />
+          </span>
           <span className="entry-label">{t('entry.master')}</span>
           <span className="entry-sub">{t('entry.master.sub')}</span>
         </button>
         <button className="entry-btn" onClick={() => onStart('date')}>
-          <span className="entry-icon" aria-hidden />
+          <span className="entry-icon" aria-hidden>
+            <Icon name="calendar" size={30} />
+          </span>
           <span className="entry-label">{t('entry.date')}</span>
           <span className="entry-sub">{t('entry.date.sub')}</span>
         </button>
         <button className="entry-btn" onClick={() => onStart('service')}>
-          <span className="entry-icon" aria-hidden />
+          <span className="entry-icon" aria-hidden>
+            <Icon name="sparkles" size={30} />
+          </span>
           <span className="entry-label">{t('entry.service')}</span>
           <span className="entry-sub">{t('entry.service.sub')}</span>
         </button>

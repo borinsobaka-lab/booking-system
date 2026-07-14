@@ -220,10 +220,11 @@ function SpecialistStep({
           const rating = ratingOf(db.reviews, sp.id)
           const nearest = showNearest && free ? nearestSlots(sp.id, sel.serviceId, 5) : null
           const isPicked = pickedId === sp.id
+          const toggle = () => free && setPickedId(isPicked ? null : sp.id)
           return (
             <div key={sp.id} className={`spec-row${free ? '' : ' unavailable'}${isPicked ? ' selected' : ''}`}>
               <div className="spec-row-top">
-                <button className="spec-row-main" disabled={!free} onClick={() => free && setPickedId(sp.id)}>
+                <button className="spec-row-main" disabled={!free} onClick={toggle}>
                   <Avatar src={sp.avatar} name={specialistName(sp, lang)} size={56} dim={!free} />
                   <div className="spec-row-info">
                     <div className="spec-row-name">{specialistName(sp, lang)}</div>
@@ -236,13 +237,13 @@ function SpecialistStep({
                   <button className="spec-info-btn" onClick={() => setBioId(sp.id)} aria-label="info" title="info">
                     i
                   </button>
-                  {/* Чекбокс выбора мастера: клик по нему или по карточке отмечает мастера. */}
+                  {/* Чекбокс выбора мастера: клик по нему или по карточке отмечает/снимает. */}
                   <button
                     className={`spec-check${isPicked ? ' on' : ''}`}
                     disabled={!free}
                     aria-pressed={isPicked}
                     aria-label="select"
-                    onClick={() => free && setPickedId(sp.id)}
+                    onClick={toggle}
                   >
                     {isPicked ? '✓' : ''}
                   </button>
@@ -251,7 +252,7 @@ function SpecialistStep({
               {nearest && (
                 <div className="spec-slots">
                   <div className="spec-slots-label">
-                    {t('nearest.for')} {fmtDayWeekdayShort(nearest.date, lang)}:
+                    {t('nearest.for')} <b>{fmtDayWeekdayShort(nearest.date, lang)}</b>:
                   </div>
                   <div className="spec-slots-chips">
                     {nearest.starts.map((s) => (
@@ -259,7 +260,7 @@ function SpecialistStep({
                         {s}
                       </button>
                     ))}
-                    <button className="spec-slot spec-slot-other" onClick={() => onPickOtherTime(sp.id)}>
+                    <button className="spec-slot" onClick={() => onPickOtherTime(sp.id)}>
                       {t('otherTime')}
                     </button>
                   </div>
@@ -347,7 +348,7 @@ function ServiceStep({ sel, onPick }: { sel: Selection; onPick: (id: string) => 
               className={`svc-full${isPicked ? ' selected' : ''}`}
               role="button"
               aria-pressed={isPicked}
-              onClick={() => setPicked(s.id)}
+              onClick={() => setPicked(isPicked ? null : s.id)}
             >
               <div className="svc-full-img" style={s.image ? { backgroundImage: `url(${s.image})` } : undefined}>
                 {!s.image && <span>💆</span>}

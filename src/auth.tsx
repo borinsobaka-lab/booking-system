@@ -25,6 +25,7 @@ interface AuthContextValue {
     username: string
     password: string
     name: string
+    email?: string
     specialistId?: string
   }) => Promise<{ ok: boolean; error?: string; user?: User }>
   /** Сменить пароль пользователя. */
@@ -89,7 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSessionId(null)
   }, [remoteMode])
 
-  const createStaff = useCallback<AuthContextValue['createStaff']>(async ({ role, username, password, name, specialistId }) => {
+  const createStaff = useCallback<AuthContextValue['createStaff']>(async ({ role, username, password, name, email, specialistId }) => {
     if (!username.trim() || !password) return { ok: false, error: 'Заполните логин и пароль' }
     const taken = getState().users.some((u) => u.username.toLowerCase() === username.trim().toLowerCase())
     if (taken) return { ok: false, error: 'Такой логин уже занят' }
@@ -101,6 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       salt,
       passwordHash: await hashPassword(password, salt),
       name: name.trim() || username.trim(),
+      email: email?.trim() || undefined,
       specialistId,
       createdAt: Date.now(),
     }
