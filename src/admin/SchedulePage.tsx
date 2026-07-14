@@ -119,18 +119,19 @@ export function SchedulePage() {
     <div className="page">
       <header className="page-head">
         <h1>Расписание</h1>
-        <div className="mode-toggle">
-          <span className="muted small">Рисуем:</span>
-          <div className="segmented">
-            <button className={mode === 'work' ? 'active' : ''} onClick={() => setMode('work')}>
-              <span className="swatch swatch-work" /> Рабочее время
-            </button>
-            <button className={mode === 'break' ? 'active' : ''} onClick={() => setMode('break')}>
-              <span className="swatch swatch-break" /> Перерыв
-            </button>
-          </div>
-        </div>
       </header>
+
+      <div className="mode-toggle">
+        <span className="muted small">Рисуем:</span>
+        <div className="segmented">
+          <button className={mode === 'work' ? 'active' : ''} onClick={() => setMode('work')}>
+            <span className="swatch swatch-work" /> Рабочее время
+          </button>
+          <button className={mode === 'break' ? 'active' : ''} onClick={() => setMode('break')}>
+            <span className="swatch swatch-break" /> Перерыв
+          </button>
+        </div>
+      </div>
 
       <div className="sched-controls">
         <div className="spec-picker">

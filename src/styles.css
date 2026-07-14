@@ -708,6 +708,8 @@ textarea {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
 }
 .spec-picker {
   display: flex;
