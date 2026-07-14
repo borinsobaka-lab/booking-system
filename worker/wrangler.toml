@@ -8,12 +8,12 @@ compatibility_date = "2024-11-01"
 DATA_REPO = "borinsobaka-lab/booking-system-data"
 DATA_BRANCH = "main"
 DATA_PATH = "data.json"
-# Origin витрины на GitHub Pages (для CORS). Замените, если домен другой.
-CORS_ORIGIN = "https://borinsobaka-lab.github.io"
+# Origin витрины (для CORS). Домен записи.
+CORS_ORIGIN = "https://booking.neba.space"
 # Часовой пояс салона — для правила «за сколько до сеанса» и напоминаний.
 STUDIO_TZ = "Asia/Tbilisi"
 # Адрес витрины — для ссылки «отменить запись» в письмах.
-CLIENT_BASE_URL = "https://borinsobaka-lab.github.io/booking-system"
+CLIENT_BASE_URL = "https://booking.neba.space"
 # Отправитель писем — адрес на подтверждённом домене neba.space.
 EMAIL_FROM = "NEBA <noreply@neba.space>"
 

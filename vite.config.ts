@@ -1,11 +1,11 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// Публикуется на GitHub Pages по адресу
-// https://<owner>.github.io/booking-system/ — поэтому base = '/booking-system/'
+// Публикуется на своём домене booking.neba.space (корень сайта) — поэтому base = '/'.
+// Домен задаётся файлом public/CNAME и в Settings → Pages репозитория.
 export default defineConfig({
   plugins: [react()],
-  base: '/booking-system/',
+  base: '/',
   build: {
     outDir: 'dist',
     sourcemap: false,
