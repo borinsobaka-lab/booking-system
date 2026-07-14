@@ -38,7 +38,7 @@ export function ReviewsPage() {
           <p className="muted small">Созданные здесь отзывы сразу видны у мастера на витрине.</p>
         </div>
         <button className="btn btn-primary" onClick={guard(() => setEditing(blank()))} disabled={db.specialists.length === 0}>
-          + Добавить отзыв
+          + Отзыв
         </button>
       </header>
 

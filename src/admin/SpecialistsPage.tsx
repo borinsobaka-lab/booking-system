@@ -33,7 +33,7 @@ export function SpecialistsPage() {
       <header className="page-head">
         <h1>Специалисты</h1>
         <button className="btn btn-primary" onClick={guard(() => setEditing(blank()))}>
-          + Добавить специалиста
+          + Специалист
         </button>
       </header>
 

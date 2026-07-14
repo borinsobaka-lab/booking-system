@@ -33,7 +33,7 @@ export function ServicesPage() {
       <header className="page-head">
         <h1>Услуги</h1>
         <button className="btn btn-primary" onClick={guard(() => setEditing(blank()))}>
-          + Добавить услугу
+          + Услуга
         </button>
       </header>
 

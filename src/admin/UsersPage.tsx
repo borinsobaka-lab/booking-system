@@ -18,11 +18,11 @@ export function UsersPage() {
         <div>
           <h1>Пользователи</h1>
           <p className="muted small">
-            Заводите админов и мастеров, выдавайте им логины и пароли. Раздел доступен только вам.
+            Заводите сотрудников, выдавайте им логины и пароли. Раздел доступен только вам.
           </p>
         </div>
         <button className="btn btn-primary" onClick={() => setCreating(true)}>
-          + Добавить сотрудника
+          + Сотрудник
         </button>
       </header>
 

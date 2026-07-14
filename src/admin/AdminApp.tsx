@@ -11,17 +11,20 @@ import { SchedulePage } from './SchedulePage'
 import { UsersPage } from './UsersPage'
 import { SettingsPage } from './SettingsPage'
 import { ReviewsPage } from './ReviewsPage'
+import { ClientsPage } from './ClientsPage'
 import { Avatar } from '../ui'
 import { Icon, type IconName } from '../icons'
 
-type Tab = 'bookings' | 'services' | 'specialists' | 'schedule' | 'reviews' | 'users' | 'settings'
+type Tab = 'bookings' | 'services' | 'specialists' | 'schedule' | 'reviews' | 'clients' | 'users' | 'settings'
 
-const TABS: { id: Tab; path: string; label: string; icon: IconName; ownerOnly?: boolean }[] = [
-  { id: 'bookings', path: ADMIN_BASE, label: 'Записи', icon: 'calendarDays' },
-  { id: 'schedule', path: `${ADMIN_BASE}/schedule`, label: 'Расписание', icon: 'calendarClock' },
+// primary — в нижнем меню на телефоне; остальное прячется в кнопку «Ещё».
+const TABS: { id: Tab; path: string; label: string; icon: IconName; ownerOnly?: boolean; primary?: boolean }[] = [
+  { id: 'bookings', path: ADMIN_BASE, label: 'Записи', icon: 'calendarDays', primary: true },
+  { id: 'schedule', path: `${ADMIN_BASE}/schedule`, label: 'Расписание', icon: 'calendarClock', primary: true },
+  { id: 'reviews', path: `${ADMIN_BASE}/reviews`, label: 'Отзывы', icon: 'message', primary: true },
+  { id: 'clients', path: `${ADMIN_BASE}/clients`, label: 'Клиенты', icon: 'contact', primary: true },
   { id: 'services', path: `${ADMIN_BASE}/services`, label: 'Услуги', icon: 'sparkles' },
   { id: 'specialists', path: `${ADMIN_BASE}/specialists`, label: 'Специалисты', icon: 'users' },
-  { id: 'reviews', path: `${ADMIN_BASE}/reviews`, label: 'Отзывы', icon: 'message' },
   { id: 'users', path: `${ADMIN_BASE}/users`, label: 'Пользователи', icon: 'key', ownerOnly: true },
   { id: 'settings', path: `${ADMIN_BASE}/settings`, label: 'Бренд', icon: 'tag', ownerOnly: true },
 ]
@@ -31,6 +34,7 @@ function tabForPath(path: string): Tab {
   if (path.startsWith(`${ADMIN_BASE}/specialists`)) return 'specialists'
   if (path.startsWith(`${ADMIN_BASE}/schedule`)) return 'schedule'
   if (path.startsWith(`${ADMIN_BASE}/reviews`)) return 'reviews'
+  if (path.startsWith(`${ADMIN_BASE}/clients`)) return 'clients'
   if (path.startsWith(`${ADMIN_BASE}/users`)) return 'users'
   if (path.startsWith(`${ADMIN_BASE}/settings`)) return 'settings'
   return 'bookings'
@@ -39,6 +43,7 @@ function tabForPath(path: string): Tab {
 export function AdminApp({ path }: { path: string }) {
   const { user, ready, logout, canManageUsers } = useAuth()
 
+  const [moreOpen, setMoreOpen] = useState(false)
   // remote-режим: подгрузить полные данные и включить сохранение на сервер,
   // когда сотрудник авторизован (в т.ч. при возврате в админку с витрины).
   const [dataReady, setDataReady] = useState(!isRemote())
@@ -71,6 +76,9 @@ export function AdminApp({ path }: { path: string }) {
 
   const tab = tabForPath(path)
   const visibleTabs = TABS.filter((t) => !t.ownerOnly || canManageUsers)
+  const primaryTabs = visibleTabs.filter((t) => t.primary)
+  const moreTabs = visibleTabs.filter((t) => !t.primary)
+  const tabInMore = moreTabs.some((t) => t.id === tab)
 
   return (
     <div className="admin">
@@ -115,6 +123,7 @@ export function AdminApp({ path }: { path: string }) {
       <main className="admin-main">
         {tab === 'bookings' && <BookingsPage />}
         {tab === 'schedule' && <SchedulePage />}
+        {tab === 'clients' && <ClientsPage />}
         {tab === 'services' && <ServicesPage />}
         {tab === 'specialists' && <SpecialistsPage />}
         {tab === 'reviews' && <ReviewsPage />}
@@ -122,9 +131,9 @@ export function AdminApp({ path }: { path: string }) {
         {tab === 'settings' && (canManageUsers ? <SettingsPage /> : <NoAccess />)}
       </main>
 
-      {/* Мобильная нижняя навигация */}
+      {/* Мобильная нижняя навигация: основные разделы + «Ещё» */}
       <nav className="admin-bottomnav">
-        {visibleTabs.map((t) => (
+        {primaryTabs.map((t) => (
           <button
             key={t.id}
             className={`admin-bottomnav-item${tab === t.id ? ' active' : ''}`}
@@ -134,7 +143,37 @@ export function AdminApp({ path }: { path: string }) {
             <span className="admin-bottomnav-label">{t.label}</span>
           </button>
         ))}
+        {moreTabs.length > 0 && (
+          <button
+            className={`admin-bottomnav-item${tabInMore || moreOpen ? ' active' : ''}`}
+            onClick={() => setMoreOpen(true)}
+          >
+            <Icon name="more" size={20} />
+            <span className="admin-bottomnav-label">Ещё</span>
+          </button>
+        )}
       </nav>
+
+      {moreOpen && (
+        <div className="admin-more-overlay" onClick={() => setMoreOpen(false)}>
+          <div className="admin-more-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="admin-more-title">Ещё</div>
+            {moreTabs.map((t) => (
+              <button
+                key={t.id}
+                className={`admin-more-item${tab === t.id ? ' active' : ''}`}
+                onClick={() => {
+                  navigate(t.path)
+                  setMoreOpen(false)
+                }}
+              >
+                <Icon name={t.icon} size={20} />
+                <span>{t.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

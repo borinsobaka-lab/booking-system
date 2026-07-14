@@ -80,6 +80,23 @@ const PATHS: Record<string, ReactNode> = {
   ),
   // облачко — «Отзывы»
   message: <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />,
+  // многоточие — «Ещё»
+  more: (
+    <>
+      <circle cx="12" cy="12" r="1" />
+      <circle cx="19" cy="12" r="1" />
+      <circle cx="5" cy="12" r="1" />
+    </>
+  ),
+  // телефонная книжка — «Клиенты»
+  contact: (
+    <>
+      <path d="M16 2v20" />
+      <rect width="16" height="20" x="4" y="2" rx="2" />
+      <circle cx="10" cy="10" r="2" />
+      <path d="M10 14c-1.7 0-3 .8-3 2v1h6v-1c0-1.2-1.3-2-3-2z" />
+    </>
+  ),
   // ключ — «Пользователи»
   key: (
     <>
