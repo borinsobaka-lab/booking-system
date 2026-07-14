@@ -146,12 +146,12 @@ function cancelButton(url) {
   return `<p style="margin:22px 0 4px"><a href="${esc(url)}" style="display:inline-block;background:#ffffff;border:1px solid #d0d0d0;color:#c0362c;text-decoration:none;padding:9px 18px;border-radius:8px;font-weight:400;font-size:14px">Cancel booking</a></p>`
 }
 
-function layout(ctx, { title, intro, cancelUrl: cUrl, showContacts }) {
+function layout(ctx, { title, intro, cancelUrl: cUrl, showContacts, danger }) {
   return `<!doctype html><html><body style="margin:0;background:#f4f4f5;padding:24px;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#1c1c1e">
   <table role="presentation" width="100%" style="max-width:540px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden">
     <tr><td style="background:#3b3b3b;color:#fff;padding:20px 24px;font-size:18px;font-weight:700">${esc(ctx.brand)}</td></tr>
     <tr><td style="padding:24px">
-      <h1 style="margin:0 0 8px;font-size:20px">${esc(title)}</h1>
+      <h1 style="margin:0 0 8px;font-size:20px${danger ? ';color:#c0362c' : ''}">${esc(title)}</h1>
       <p style="margin:0 0 16px;color:#555;line-height:1.5">${intro}</p>
       ${infoTable(ctx)}
       ${cancelButton(cUrl)}
@@ -212,6 +212,7 @@ export async function notifyBookingCancelled(env, data, booking) {
       title: 'Booking cancelled',
       intro: 'Your booking has been cancelled. If this was a mistake, please book again or contact us.',
       showContacts: true,
+      danger: true,
     })
     jobs.push(sendEmail(env, { to: booking.clientEmail, subject: `Booking cancelled — ${ctx.brand}`, html }))
   }
@@ -222,13 +223,13 @@ export async function notifyBookingCancelled(env, data, booking) {
   // сотрудники (владелец + остальные с почтой), кроме мастера записи
   const staff = staffEmails(data, mUser ? mUser.id : null)
   if (staff.length) {
-    const html = layout(ctx, { title: 'Booking cancelled', intro: staffIntro, showContacts: false })
+    const html = layout(ctx, { title: 'Booking cancelled', intro: staffIntro, showContacts: false, danger: true })
     jobs.push(sendEmail(env, { to: staff, subject: `Booking cancelled — ${ctx.brand}`, html }))
   }
   // мастер записи
   const master = masterEmail(data, booking.specialistId)
   if (master) {
-    const html = layout(ctx, { title: 'Booking cancelled', intro: staffIntro, showContacts: false })
+    const html = layout(ctx, { title: 'Booking cancelled', intro: staffIntro, showContacts: false, danger: true })
     jobs.push(sendEmail(env, { to: master, subject: `Booking cancelled — ${ctx.brand}`, html }))
   }
   await Promise.all(jobs)
