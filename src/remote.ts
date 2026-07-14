@@ -2,7 +2,7 @@
 // в sessionStorage; персональные данные приходят только авторизованным.
 
 import { apiBase } from './config'
-import type { Booking, DB } from './types'
+import type { Booking, DB, Lang } from './types'
 
 const SESSION_KEY = 'booking-remote-session'
 
@@ -62,11 +62,31 @@ export interface BookingPayload {
   clientEmail?: string
   comment?: string
   consent: boolean
+  lang?: Lang
 }
 
 export async function submitBooking(payload: BookingPayload): Promise<Booking> {
   const r = await api('/api/bookings', { method: 'POST', body: JSON.stringify(payload) })
   return r.booking as Booking
+}
+
+/** Админ создаёт запись вручную (нужна сессия). Триггерит письма на сервере. */
+export async function createBookingAdmin(payload: {
+  specialistId: string
+  serviceId: string
+  date: string
+  start: string
+  clientName?: string
+  clientPhone?: string
+  clientEmail?: string
+}): Promise<Booking> {
+  const r = await api('/api/bookings/create', { method: 'POST', headers: authHeaders(), body: JSON.stringify(payload) })
+  return r.booking as Booking
+}
+
+/** Отмена записи (нужна сессия). Триггерит письма клиенту и мастеру. */
+export async function cancelBookingRemote(id: string): Promise<void> {
+  await api('/api/bookings/cancel', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ id }) })
 }
 
 export async function login(username: string, password: string): Promise<RemoteUser> {

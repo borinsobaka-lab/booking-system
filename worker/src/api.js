@@ -12,6 +12,7 @@ import {
   verifySession,
   uid,
 } from './logic.js'
+import { notifyBookingCreated, notifyBookingCancelled } from './email.js'
 
 function corsHeaders(env, request) {
   const origin = env.CORS_ORIGIN || request.headers.get('Origin') || '*'
@@ -77,6 +78,7 @@ export async function handle(request, env, deps) {
 
       let created = null
       let failReason = null
+      let savedData = null
       await store.update((data) => {
         const svc = data.services.find((s) => s.id === serviceId)
         if (!svc) {
@@ -105,16 +107,89 @@ export async function handle(request, env, deps) {
           clientPhone: String(b.clientPhone).slice(0, 60),
           clientEmail: b.clientEmail ? String(b.clientEmail).slice(0, 200) : undefined,
           comment: b.comment ? String(b.comment).slice(0, 1000) : undefined,
+          lang: b.lang === 'en' || b.lang === 'ka' || b.lang === 'ru' ? b.lang : undefined,
           consent: true,
           createdAt: now(),
         }
         data.bookings.push(created)
+        savedData = data
         return data
       }, 'booking: new')
 
       if (!created) return json({ error: failReason || 'Не удалось создать запись' }, 409, env, request)
+      // Письма: клиенту, сотрудникам, мастеру (если Resend настроен).
+      await notifyBookingCreated(env, savedData, created)
       // Клиенту возвращаем только его запись без чужих данных.
       return json({ ok: true, booking: created }, 200, env, request)
+    }
+
+    // --- Админ создаёт запись вручную (нужна сессия) ---
+    if (path === '/api/bookings/create' && method === 'POST') {
+      const session = await readSession(request, env, now())
+      if (!session) return json({ error: 'Требуется вход' }, 401, env, request)
+      const b = await request.json().catch(() => null)
+      if (!b) return json({ error: 'bad json' }, 400, env, request)
+      const { specialistId, serviceId, date, start } = b
+      if (!specialistId || !serviceId || !RE_DATE.test(date || '') || !RE_TIME.test(start || ''))
+        return json({ error: 'Неверные данные записи' }, 400, env, request)
+
+      let created = null
+      let failReason = null
+      let savedData = null
+      await store.update((data) => {
+        const svc = data.services.find((s) => s.id === serviceId)
+        if (!svc) {
+          failReason = 'Услуга не найдена'
+          return null
+        }
+        if (!isSlotFree(data, specialistId, serviceId, date, start)) {
+          failReason = 'Это время уже занято'
+          return null
+        }
+        created = {
+          id: uid(now(), rnd()),
+          specialistId,
+          serviceId,
+          date,
+          start,
+          end: addMinutes(start, svc.durationMin),
+          status: 'confirmed',
+          clientName: b.clientName ? String(b.clientName).slice(0, 200) : undefined,
+          clientPhone: b.clientPhone ? String(b.clientPhone).slice(0, 60) : undefined,
+          clientEmail: b.clientEmail ? String(b.clientEmail).slice(0, 200) : undefined,
+          comment: b.comment ? String(b.comment).slice(0, 1000) : undefined,
+          createdAt: now(),
+        }
+        data.bookings.push(created)
+        savedData = data
+        return data
+      }, 'booking: admin new')
+
+      if (!created) return json({ error: failReason || 'Не удалось создать запись' }, 409, env, request)
+      await notifyBookingCreated(env, savedData, created)
+      return json({ ok: true, booking: created }, 200, env, request)
+    }
+
+    // --- Отмена записи (нужна сессия) ---
+    if (path === '/api/bookings/cancel' && method === 'POST') {
+      const session = await readSession(request, env, now())
+      if (!session) return json({ error: 'Требуется вход' }, 401, env, request)
+      const b = await request.json().catch(() => null)
+      if (!b || !b.id) return json({ error: 'bad json' }, 400, env, request)
+
+      let removed = null
+      let savedData = null
+      await store.update((data) => {
+        removed = (data.bookings || []).find((x) => x.id === b.id) || null
+        if (!removed) return null
+        data.bookings = data.bookings.filter((x) => x.id !== b.id)
+        savedData = data
+        return data
+      }, 'booking: cancel')
+
+      if (!removed) return json({ error: 'Запись не найдена' }, 404, env, request)
+      await notifyBookingCancelled(env, savedData, removed)
+      return json({ ok: true }, 200, env, request)
     }
 
     // --- Вход сотрудника (регистрации/создания владельца через API НЕТ) ---
@@ -160,7 +235,9 @@ export async function handle(request, env, deps) {
         next.services = incoming.services ?? current.services
         next.specialists = incoming.specialists ?? current.specialists
         next.schedules = incoming.schedules ?? current.schedules
-        next.bookings = incoming.bookings ?? current.bookings
+        // Записи меняются ТОЛЬКО через выделенные эндпоинты (/api/bookings*),
+        // чтобы отправлять письма и не терять брони при перезаписи из админки.
+        next.bookings = current.bookings
         next.reviews = incoming.reviews ?? current.reviews
 
         // Пользователей меняет только суперадминистратор. Секреты (salt/hash)

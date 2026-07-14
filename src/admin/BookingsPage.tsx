@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useDB, deleteBooking, addBooking, uid } from '../db'
+import { isRemote } from '../config'
+import * as remote from '../remote'
 import { Avatar, Field, Modal, money, duration } from '../ui'
 import { navigate, ADMIN_BASE } from '../router'
 import { todayKey, addDays, formatFull, toMinutes, addMinutes } from '../time'
@@ -192,11 +194,18 @@ function BookingDetail({ booking, onClose }: { booking: Booking; onClose: () => 
         <div className="form-actions">
           <button
             className="btn btn-danger"
-            onClick={() => {
-              if (confirm('Отменить эту запись?')) {
-                deleteBooking(booking.id)
-                onClose()
+            onClick={async () => {
+              if (!confirm('Отменить эту запись?')) return
+              if (isRemote()) {
+                try {
+                  await remote.cancelBookingRemote(booking.id)
+                } catch (e) {
+                  alert(e instanceof Error ? e.message : 'Не удалось отменить запись')
+                  return
+                }
               }
+              deleteBooking(booking.id)
+              onClose()
             }}
           >
             Отменить запись
@@ -225,19 +234,35 @@ function ManualBooking({ date, onClose }: { date: string; onClose: () => void })
     [spec, service, date],
   )
 
-  const save = () => {
+  const save = async () => {
     if (!spec || !service || !start) return
-    addBooking({
-      id: uid(),
-      specialistId: spec.id,
-      serviceId: service.id,
-      date,
-      start,
-      end: addMinutes(start, service.durationMin),
-      status: 'confirmed',
-      clientName: clientName.trim() || undefined,
-      createdAt: Date.now(),
-    })
+    if (isRemote()) {
+      try {
+        const bk = await remote.createBookingAdmin({
+          specialistId: spec.id,
+          serviceId: service.id,
+          date,
+          start,
+          clientName: clientName.trim() || undefined,
+        })
+        addBooking(bk)
+      } catch (e) {
+        alert(e instanceof Error ? e.message : 'Не удалось создать запись')
+        return
+      }
+    } else {
+      addBooking({
+        id: uid(),
+        specialistId: spec.id,
+        serviceId: service.id,
+        date,
+        start,
+        end: addMinutes(start, service.durationMin),
+        status: 'confirmed',
+        clientName: clientName.trim() || undefined,
+        createdAt: Date.now(),
+      })
+    }
     onClose()
   }
 

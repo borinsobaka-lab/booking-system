@@ -170,6 +170,51 @@ test('public: настройки записи отдаются витрине', 
   assert.equal(r.body.settings.minLeadMinutes, 60)
 })
 
+test('cancel: нужна сессия; удаляет запись; нет записи — 404', async () => {
+  const store = await seededStore()
+  // создаём запись
+  const payload = { specialistId: 'p1', serviceId: 's1', date: '2026-07-13', start: '10:00', clientName: 'М', clientPhone: '+1', consent: true }
+  const r1 = await call(store, 'POST', '/api/bookings', { body: payload })
+  const id = r1.body.booking.id
+  // без сессии — 401
+  const noauth = await call(store, 'POST', '/api/bookings/cancel', { body: { id } })
+  assert.equal(noauth.status, 401)
+  // с сессией — удаляет
+  const login = await call(store, 'POST', '/api/auth/login', { body: { username: 'owner', password: 'pw' } })
+  const ok = await call(store, 'POST', '/api/bookings/cancel', { token: login.body.token, body: { id } })
+  assert.equal(ok.status, 200)
+  assert.equal(store._peek().bookings.length, 0)
+  // повторно — 404
+  const again = await call(store, 'POST', '/api/bookings/cancel', { token: login.body.token, body: { id } })
+  assert.equal(again.status, 404)
+})
+
+test('admin create: нужна сессия; создаёт запись', async () => {
+  const store = await seededStore()
+  const login = await call(store, 'POST', '/api/auth/login', { body: { username: 'owner', password: 'pw' } })
+  const body = { specialistId: 'p1', serviceId: 's1', date: '2026-07-13', start: '11:00', clientName: 'Гость' }
+  const noauth = await call(store, 'POST', '/api/bookings/create', { body })
+  assert.equal(noauth.status, 401)
+  const ok = await call(store, 'POST', '/api/bookings/create', { token: login.body.token, body })
+  assert.equal(ok.status, 200)
+  assert.equal(ok.body.booking.end, '12:00')
+  assert.equal(store._peek().bookings.length, 1)
+})
+
+test('PUT /api/data не затирает записи (брони меняются только эндпоинтами)', async () => {
+  const store = await seededStore()
+  // создаём бронь через клиентский эндпоинт
+  await call(store, 'POST', '/api/bookings', { body: { specialistId: 'p1', serviceId: 's1', date: '2026-07-13', start: '10:00', clientName: 'М', clientPhone: '+1', consent: true } })
+  assert.equal(store._peek().bookings.length, 1)
+  // админ сохраняет данные с пустым bookings — бронь должна остаться
+  const login = await call(store, 'POST', '/api/auth/login', { body: { username: 'owner', password: 'pw' } })
+  const got = await call(store, 'GET', '/api/data', { token: login.body.token })
+  const d = got.body.data
+  d.bookings = []
+  await call(store, 'PUT', '/api/data', { token: login.body.token, body: { data: d } })
+  assert.equal(store._peek().bookings.length, 1)
+})
+
 test('GET /api/data: нужна сессия; секреты учёток не отдаются', async () => {
   const store = await seededStore()
   const noauth = await call(store, 'GET', '/api/data')

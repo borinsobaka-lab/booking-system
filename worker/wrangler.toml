@@ -10,7 +10,20 @@ DATA_BRANCH = "main"
 DATA_PATH = "data.json"
 # Origin витрины на GitHub Pages (для CORS). Замените, если домен другой.
 CORS_ORIGIN = "https://borinsobaka-lab.github.io"
+# Часовой пояс салона — для правила «за сколько до сеанса» и напоминаний.
+STUDIO_TZ = "Asia/Tbilisi"
+# Отправитель писем. Для боевого режима — адрес на ПОДТВЕРЖДЁННОМ домене Resend.
+# Пока домен не подтверждён — оставьте onboarding@resend.dev (см. SETUP.md).
+EMAIL_FROM = "NEBA <onboarding@resend.dev>"
+
+# Cron: напоминания клиентам «за час». Каждые 10 минут проверяем ближайшие записи.
+[triggers]
+crons = ["*/10 * * * *"]
 
 # Секреты (задать через wrangler secret put, не сюда):
 #   DATA_TOKEN     — GitHub-токен с доступом contents:read/write к DATA_REPO
 #   SESSION_SECRET — длинная случайная строка для подписи сессий
+#   RESEND_API_KEY — ключ Resend (re_...). Без него письма не отправляются.
+#   TEST_EMAIL     — (тест) все письма уходят на этот адрес вместо реальных
+#   EMAIL_REPLY_TO — (необязательно) адрес для ответов клиентов
+#   REMINDER_LEAD_MINUTES — за сколько минут напоминать (по умолчанию 60)

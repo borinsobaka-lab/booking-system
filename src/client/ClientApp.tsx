@@ -18,7 +18,7 @@ type Screen =
 
 export function ClientApp(_props: { path: string }) {
   const db = useDB()
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
   const [screen, setScreen] = useState<Screen>({ kind: 'landing' })
   const [loading, setLoading] = useState(isRemote())
 
@@ -52,6 +52,7 @@ export function ClientApp(_props: { path: string }) {
           clientEmail: v.clientEmail || undefined,
           comment: v.comment || undefined,
           consent: v.consent,
+          lang,
         })
         setScreen({ kind: 'done', booking })
       } catch (e) {
@@ -72,6 +73,7 @@ export function ClientApp(_props: { path: string }) {
       clientEmail: v.clientEmail || undefined,
       comment: v.comment || undefined,
       consent: v.consent,
+      lang,
       createdAt: Date.now(),
     }
     addBooking(booking)

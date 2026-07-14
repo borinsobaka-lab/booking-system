@@ -114,6 +114,10 @@ export interface Booking {
   comment?: string
   /** Согласие клиента на обработку персональных данных. */
   consent?: boolean
+  /** Язык клиента при записи — для писем на его языке. */
+  lang?: Lang
+  /** Когда отправлено напоминание «за час» (защита от повторной отправки). */
+  reminderSentAt?: number
   createdAt: number
 }
 
