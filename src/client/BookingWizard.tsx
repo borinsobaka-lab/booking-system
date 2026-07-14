@@ -521,7 +521,8 @@ function ConfirmStep({
   const sp = db.specialists.find((s) => s.id === sel.specialistId)
   const end = svc && sel.start ? addMinutes(sel.start, svc.durationMin) : ''
 
-  const emailValid = form.clientEmail.trim() === '' || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.clientEmail.trim())
+  // Email обязателен — на него уходит подтверждение и напоминание.
+  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.clientEmail.trim())
   const canBook =
     !!(sel.serviceId && sel.specialistId && sel.date && sel.start) &&
     form.clientName.trim().length > 0 &&
@@ -565,9 +566,9 @@ function ConfirmStep({
         <input type="tel" value={form.clientPhone} onChange={(e) => set('clientPhone', e.target.value)} placeholder="+995 555 12 34 56" />
       </label>
       <label className="field">
-        <span className="field-label">{t('label.email')}</span>
+        <span className="field-label">{t('label.email')} *</span>
         <input type="email" value={form.clientEmail} onChange={(e) => set('clientEmail', e.target.value)} placeholder={t('form.emailPh')} />
-        {!emailValid && <span className="field-error">{t('form.emailErr')}</span>}
+        {form.clientEmail.trim() !== '' && !emailValid && <span className="field-error">{t('form.emailErr')}</span>}
       </label>
       <label className="field">
         <span className="field-label">{t('label.comment')}</span>
