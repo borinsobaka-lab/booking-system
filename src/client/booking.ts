@@ -3,6 +3,7 @@
 
 import { getState } from '../db'
 import { freeSlots, isSlotFree } from '../availability'
+import { addDays, todayKey } from '../time'
 import type { Service, Specialist } from '../types'
 
 export interface Selection {
@@ -63,6 +64,49 @@ export function servicesBookableAt(date: string, start: string): Service[] {
   return services().filter((svc) =>
     specialistsDoing(svc.id).some((sp) => isSlotFree(sp.id, date, start, svc.durationMin)),
   )
+}
+
+/** Текущее время 'HH:MM' (для отсечения прошедших слотов на сегодня). */
+function nowHHMM(): string {
+  const d = new Date()
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+/**
+ * Ближайшие свободные слоты специалиста для показа на карточке.
+ * Длительность: выбранной услуги (если известна), иначе максимальная среди
+ * услуг мастера — тогда слот гарантированно подойдёт под любую выбранную позже.
+ * Прошедшие сегодняшние времена отсекаются.
+ */
+export function nearestSlots(
+  specialistId: string,
+  serviceId: string | undefined,
+  count = 5,
+  horizonDays = 30,
+): { date: string; starts: string[] } | null {
+  const state = getState()
+  const sp = state.specialists.find((s) => s.id === specialistId)
+  if (!sp) return null
+  let duration: number
+  if (serviceId) {
+    const svc = state.services.find((s) => s.id === serviceId)
+    if (!svc) return null
+    duration = svc.durationMin
+  } else {
+    const durs = state.services.filter((s) => sp.serviceIds.includes(s.id)).map((s) => s.durationMin)
+    if (durs.length === 0) return null
+    duration = Math.max(...durs)
+  }
+  const today = todayKey()
+  const now = nowHHMM()
+  let day = today
+  for (let i = 0; i < horizonDays; i++) {
+    let starts = freeSlots(specialistId, day, duration).map((s) => s.start)
+    if (day === today) starts = starts.filter((s) => s > now)
+    if (starts.length) return { date: day, starts: starts.slice(0, count) }
+    day = addDays(day, 1)
+  }
+  return null
 }
 
 /** Свободен ли специалист под услугу в конкретные дату/время. */

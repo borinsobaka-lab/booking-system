@@ -2,11 +2,12 @@ import { useMemo, useState } from 'react'
 import { useDB, ratingOf } from '../db'
 import { Avatar, Stars } from '../ui'
 import { RichTextView } from '../RichText'
-import { useI18n, fmtDuration, fmtPrice, fmtFull, fmtMonthYear, weekdayHeaders, fmtReviewCount } from '../i18n'
+import { useI18n, fmtDuration, fmtPrice, fmtFull, fmtMonthYear, weekdayHeaders, fmtReviewCount, fmtDayShort } from '../i18n'
 import { pick, specialistName } from '../localized'
 import { addMinutes, fromDateKey, toDateKey, todayKey } from '../time'
 import {
   dayAvailable,
+  nearestSlots,
   servicesBookableAt,
   servicesOf,
   specialistFreeAt,
@@ -47,8 +48,6 @@ export function BookingWizard({
   const [sel, setSel] = useState<Selection>({})
   const step = steps[index]
 
-  const patch = (p: Partial<Selection>) => setSel((s) => ({ ...s, ...p }))
-  const next = () => setIndex((i) => Math.min(steps.length - 1, i + 1))
   const back = () => {
     if (index === 0) return onExit()
     clearFrom(steps[index - 1])
@@ -68,9 +67,18 @@ export function BookingWizard({
     })
   }
 
+  // Следующий шаг; если дата и время уже выбраны (например, слот на карточке
+  // мастера) — шаг «дата и время» пропускается.
+  const advanceFrom = (i: number, s: Selection) => {
+    let ni = i + 1
+    while (ni < steps.length && steps[ni] === 'datetime' && !!s.date && !!s.start) ni++
+    return Math.min(steps.length - 1, ni)
+  }
+
   const choose = (p: Partial<Selection>) => {
-    patch(p)
-    next()
+    const nsel = { ...sel, ...p }
+    setSel(nsel)
+    setIndex((i) => advanceFrom(i, nsel))
   }
 
   const progress = ((index + 1) / steps.length) * 100
@@ -98,7 +106,13 @@ export function BookingWizard({
         {step !== 'datetime' && <h2 className="wiz-title">{t(STEP_KEY[step])}</h2>}
 
         <div className="wiz-body">
-          {step === 'specialist' && <SpecialistStep sel={sel} onPick={(id) => choose({ specialistId: id })} />}
+          {step === 'specialist' && (
+            <SpecialistStep
+              sel={sel}
+              onPick={(id) => choose({ specialistId: id })}
+              onPickSlot={(id, date, start) => choose({ specialistId: id, date, start })}
+            />
+          )}
           {step === 'service' && <ServiceStep sel={sel} onPick={(id) => choose({ serviceId: id })} />}
           {step === 'datetime' && <DateTimeStep sel={sel} onPick={(date, start) => choose({ date, start })} />}
           {step === 'confirm' && <ConfirmStep sel={sel} onBook={onBooked} />}
@@ -127,10 +141,19 @@ function CompactBrand({ onHome }: { onHome: () => void }) {
 }
 
 // --- Шаг: специалист (список во всю ширину + карточка с биографией) ---
-function SpecialistStep({ sel, onPick }: { sel: Selection; onPick: (id: string) => void }) {
+function SpecialistStep({
+  sel,
+  onPick,
+  onPickSlot,
+}: {
+  sel: Selection
+  onPick: (id: string) => void
+  onPickSlot: (id: string, date: string, start: string) => void
+}) {
   const db = useDB()
   const { lang, t } = useI18n()
   const [bioId, setBioId] = useState<string | null>(null)
+  const today = todayKey()
   const list: Specialist[] = sel.serviceId ? specialistsDoing(sel.serviceId) : db.specialists
   const knowsTime = !!(sel.date && sel.start && sel.serviceId)
   const isFree = (sp: Specialist) => (knowsTime ? specialistFreeAt(sp.id, sel.serviceId!, sel.date!, sel.start!) : true)
@@ -161,25 +184,45 @@ function SpecialistStep({ sel, onPick }: { sel: Selection; onPick: (id: string) 
     )
   }
 
+  // Показываем ближайшие слоты, только если время ещё не выбрано.
+  const showNearest = !sel.start
+
   return (
     <div className="spec-list">
       {list.map((sp) => {
         const free = isFree(sp)
         const rating = ratingOf(db.reviews, sp.id)
+        const nearest = showNearest && free ? nearestSlots(sp.id, sel.serviceId, 5) : null
         return (
           <div key={sp.id} className={`spec-row${free ? '' : ' unavailable'}`}>
-            <button className="spec-row-main" disabled={!free} onClick={() => free && onPick(sp.id)}>
-              <Avatar src={sp.avatar} name={specialistName(sp, lang)} size={56} dim={!free} />
-              <div className="spec-row-info">
-                <div className="spec-row-name">{specialistName(sp, lang)}</div>
-                <div className="spec-row-role">{pick(sp.role, lang)}</div>
-                <RatingLine avg={rating.avg} count={rating.count} />
-                {!free && <div className="spec-row-badge">{t('specialist.busy')}</div>}
+            <div className="spec-row-top">
+              <button className="spec-row-main" disabled={!free} onClick={() => free && onPick(sp.id)}>
+                <Avatar src={sp.avatar} name={specialistName(sp, lang)} size={56} dim={!free} />
+                <div className="spec-row-info">
+                  <div className="spec-row-name">{specialistName(sp, lang)}</div>
+                  <div className="spec-row-role">{pick(sp.role, lang)}</div>
+                  <RatingLine avg={rating.avg} count={rating.count} />
+                  {!free && <div className="spec-row-badge">{t('specialist.busy')}</div>}
+                </div>
+              </button>
+              <button className="spec-info-btn" onClick={() => setBioId(sp.id)} aria-label="info" title="info">
+                i
+              </button>
+            </div>
+            {nearest && (
+              <div className="spec-slots">
+                <div className="spec-slots-label">
+                  {t('nearest')} · {nearest.date === today ? t('today') : fmtDayShort(nearest.date, lang)}
+                </div>
+                <div className="spec-slots-chips">
+                  {nearest.starts.map((s) => (
+                    <button key={s} className="spec-slot" onClick={() => onPickSlot(sp.id, nearest.date, s)}>
+                      {s}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </button>
-            <button className="spec-info-btn" onClick={() => setBioId(sp.id)} aria-label="info" title="info">
-              i
-            </button>
+            )}
           </div>
         )
       })}

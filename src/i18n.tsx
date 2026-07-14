@@ -68,6 +68,8 @@ const DICT: Dict = {
     ru: 'Выбрать этого специалиста',
   },
   'specialist.closeBio': { en: 'Close bio', ka: 'ბიოგრაფიის დახურვა', ru: 'Закрыть биографию' },
+  'nearest': { en: 'Nearest slots', ka: 'უახლოესი დრო', ru: 'Ближайшие слоты' },
+  'today': { en: 'today', ka: 'დღეს', ru: 'сегодня' },
 
   'empty.noSpecialists': {
     en: 'No specialists for this service yet.',
@@ -186,6 +188,12 @@ export function fmtFull(dateKey: string, lang: Lang): string {
 
 export function fmtMonthYear(year: number, month: number, lang: Lang): string {
   return `${MONTHS[lang][month]} ${year}`
+}
+
+/** Короткая дата «13 июля» (без дня недели). */
+export function fmtDayShort(dateKey: string, lang: Lang): string {
+  const d = fromDateKey(dateKey)
+  return `${d.getDate()} ${MONTHS_GEN[lang][d.getMonth()]}`
 }
 
 /** Короткие заголовки дней недели Пн…Вс на языке. */

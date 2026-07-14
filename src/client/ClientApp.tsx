@@ -90,7 +90,7 @@ export function ClientApp(_props: { path: string }) {
   return (
     <div className="client">
       <LangSwitcher />
-      <Banner />
+      <Banner loading={loading} />
       <div className="client-content">
         {loading && (
           <div className="landing">
@@ -126,12 +126,27 @@ function LangSwitcher() {
   )
 }
 
-function Banner() {
+function Banner({ loading }: { loading: boolean }) {
   const db = useDB()
   const { lang } = useI18n()
   const { brand } = db
   const name = pick(brand.name, lang)
   const address = pick(brand.address, lang)
+
+  // Пока данные грузятся с сервера — скелетоны вместо дефолтного текста,
+  // чтобы не проскакивало «Massage studio».
+  if (loading) {
+    return (
+      <header className="client-banner">
+        <div className="client-banner-overlay">
+          <div className="skel skel-avatar" />
+          <div className="skel skel-line" style={{ width: 160, height: 22, marginTop: 12 }} />
+          <div className="skel skel-line" style={{ width: 200, height: 13, marginTop: 8 }} />
+        </div>
+      </header>
+    )
+  }
+
   return (
     <header
       className="client-banner"

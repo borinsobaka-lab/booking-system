@@ -996,6 +996,34 @@ textarea {
   opacity: 0.95;
   margin-top: 4px;
 }
+/* Скелетон-лоадеры в баннере, пока грузятся данные */
+.skel {
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 8px;
+  position: relative;
+  overflow: hidden;
+}
+.skel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.28), transparent);
+  transform: translateX(-100%);
+  animation: skel-shimmer 1.3s infinite;
+}
+.skel-avatar {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+}
+.skel-line {
+  border-radius: 8px;
+}
+@keyframes skel-shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
 .client-content {
   flex: 1;
   padding: 22px 18px 30px;
@@ -1019,15 +1047,15 @@ textarea {
 }
 .entry-btn {
   display: grid;
-  grid-template-columns: 52px 1fr;
+  grid-template-columns: 64px 1fr;
   grid-template-rows: auto auto;
-  column-gap: 16px;
+  column-gap: 18px;
   align-items: center;
   text-align: left;
   border: 1.5px solid var(--border);
   background: var(--surface);
   border-radius: 16px;
-  padding: 22px 22px;
+  padding: 22px;
   transition: border-color 0.15s, background 0.15s;
 }
 .entry-btn:hover {
@@ -1035,8 +1063,8 @@ textarea {
 }
 .entry-icon {
   grid-row: 1 / 3;
-  width: 44px;
-  height: 44px;
+  width: 64px;
+  height: 64px;
   border-radius: 50%;
   background: #ececec;
   align-self: center;
@@ -1295,15 +1323,18 @@ textarea {
   gap: 12px;
 }
 .spec-row {
-  display: flex;
-  align-items: stretch;
   border: 1.5px solid var(--border);
   border-radius: 16px;
-  overflow: hidden;
   background: var(--surface);
 }
 .spec-row.unavailable {
   background: #fafafa;
+}
+.spec-row-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
 }
 .spec-row-main {
   flex: 1;
@@ -1313,11 +1344,8 @@ textarea {
   border: none;
   background: none;
   text-align: left;
-  padding: 14px 16px;
+  padding: 0;
   min-width: 0;
-}
-.spec-row-main:not(:disabled):hover {
-  background: #fafafa;
 }
 .spec-row-info {
   min-width: 0;
@@ -1340,21 +1368,48 @@ textarea {
   display: inline-block;
   margin-top: 4px;
 }
+/* Круглая кнопка «i» на светло-серой подложке — понятно, что это кнопка. */
 .spec-info-btn {
   flex: none;
-  width: 52px;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
   border: none;
-  border-left: 1.5px solid var(--border);
-  background: none;
-  color: var(--muted);
+  background: #ececec;
+  color: var(--text);
   font-size: 17px;
   font-style: italic;
   font-weight: 700;
   font-family: Georgia, 'Times New Roman', serif;
 }
 .spec-info-btn:hover {
-  background: #f4f4f4;
-  color: var(--text);
+  background: #e0e0e0;
+}
+/* Ближайшие слоты на карточке мастера */
+.spec-slots {
+  border-top: 1px solid var(--border);
+  padding: 10px 14px 12px;
+}
+.spec-slots-label {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.spec-slots-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.spec-slot {
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  border-radius: 20px;
+  padding: 7px 14px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.spec-slot:hover {
+  border-color: var(--accent);
 }
 .spec-bio {
   display: flex;
