@@ -10,6 +10,7 @@ import { pick, specialistName } from '../localized'
 import { addMinutes } from '../time'
 import { navigate } from '../router'
 import { googleCalUrl, outlookCalUrl, icsDataUri, type CalEvent } from './calendar'
+import { saveProfile } from './profile'
 import { BookingWizard, type Flow } from './BookingWizard'
 import type { Booking, BookingForm } from '../types'
 
@@ -42,6 +43,8 @@ export function ClientApp({ path }: { path: string }) {
     v: { serviceId: string; specialistId: string; date: string; start: string } & BookingForm,
   ) => {
     const svc = db.services.find((s) => s.id === v.serviceId)!
+    // Запоминаем контакты для подстановки при следующей записи (в браузере клиента).
+    saveProfile({ clientName: v.clientName, clientPhone: v.clientPhone, clientEmail: v.clientEmail })
     if (isRemote()) {
       try {
         const booking = await remote.submitBooking({

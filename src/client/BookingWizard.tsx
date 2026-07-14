@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useDB, ratingOf } from '../db'
+import { loadProfile } from './profile'
 import { Avatar, Stars } from '../ui'
 import { RichTextView } from '../RichText'
 import { useI18n, fmtDuration, fmtPrice, fmtFull, fmtMonthYear, weekdayHeaders, fmtReviewCount, fmtDayWeekdayShort, LangSelect } from '../i18n'
@@ -49,6 +50,12 @@ export function BookingWizard({
   const [index, setIndex] = useState(0)
   const [sel, setSel] = useState<Selection>({})
   const step = steps[index]
+
+  // При переходе между этапами — прокрутка наверх (иначе новый этап может
+  // открыться уже проскролленным после скролла предыдущего).
+  useEffect(() => {
+    window.scrollTo({ top: 0 })
+  }, [index])
 
   const back = () => {
     if (index === 0) return onExit()
@@ -497,12 +504,16 @@ function ConfirmStep({
   const db = useDB()
   const { lang, t } = useI18n()
   const [busy, setBusy] = useState(false)
-  const [form, setForm] = useState<BookingForm>({
-    clientName: '',
-    clientPhone: '',
-    clientEmail: '',
-    comment: '',
-    consent: false,
+  // Подставляем контакты из прошлой записи (если клиент уже записывался).
+  const [form, setForm] = useState<BookingForm>(() => {
+    const saved = loadProfile()
+    return {
+      clientName: saved.clientName ?? '',
+      clientPhone: saved.clientPhone ?? '',
+      clientEmail: saved.clientEmail ?? '',
+      comment: '',
+      consent: false,
+    }
   })
   const set = <K extends keyof BookingForm>(k: K, v: BookingForm[K]) => setForm((f) => ({ ...f, [k]: v }))
 
@@ -536,10 +547,6 @@ function ConfirmStep({
           <div className="confirm-row">
             <span>{t('label.service')}</span>
             <b>{svc && pick(svc.name, lang)}</b>
-          </div>
-          <div className="confirm-row">
-            <span>{t('label.serviceCost')}</span>
-            <b>{svc && fmtPrice(svc.price, lang)}</b>
           </div>
           <div className="confirm-row total">
             <span>{t('label.total')}</span>
