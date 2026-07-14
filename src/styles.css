@@ -1072,9 +1072,9 @@ textarea {
 }
 .entry-btn {
   display: grid;
-  grid-template-columns: 64px 1fr;
+  grid-template-columns: 46px 1fr;
   grid-template-rows: auto auto;
-  column-gap: 18px;
+  column-gap: 16px;
   align-items: center;
   text-align: left;
   border: 1.5px solid var(--border);
@@ -1088,8 +1088,8 @@ textarea {
 }
 .entry-icon {
   grid-row: 1 / 3;
-  width: 64px;
-  height: 64px;
+  width: 46px;
+  height: 46px;
   border-radius: 50%;
   background: #ececec;
   align-self: center;

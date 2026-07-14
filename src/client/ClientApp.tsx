@@ -181,21 +181,21 @@ function Landing({ configured, onStart }: { configured: boolean; onStart: (flow:
       <div className="entry-buttons">
         <button className="entry-btn" onClick={() => onStart('master')}>
           <span className="entry-icon" aria-hidden>
-            <Icon name="user" size={30} />
+            <Icon name="user" size={22} />
           </span>
           <span className="entry-label">{t('entry.master')}</span>
           <span className="entry-sub">{t('entry.master.sub')}</span>
         </button>
         <button className="entry-btn" onClick={() => onStart('date')}>
           <span className="entry-icon" aria-hidden>
-            <Icon name="calendar" size={30} />
+            <Icon name="calendar" size={22} />
           </span>
           <span className="entry-label">{t('entry.date')}</span>
           <span className="entry-sub">{t('entry.date.sub')}</span>
         </button>
         <button className="entry-btn" onClick={() => onStart('service')}>
           <span className="entry-icon" aria-hidden>
-            <Icon name="sparkles" size={30} />
+            <Icon name="list" size={22} />
           </span>
           <span className="entry-label">{t('entry.service')}</span>
           <span className="entry-sub">{t('entry.service.sub')}</span>
