@@ -466,6 +466,17 @@ textarea {
     transform: rotate(360deg);
   }
 }
+/* Спиннер внутри кнопки — пока идёт отправка (напр. брони). */
+.btn-spinner {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border: 2.5px solid rgba(255, 255, 255, 0.45);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  vertical-align: -3px;
+}
 
 /* ===== Сетки карточек ===== */
 .cards-grid {
@@ -2009,7 +2020,7 @@ textarea {
 }
 /* Кнопки «добавить в календарь» на экране подтверждения */
 .cal-add {
-  margin: 16px 0 6px;
+  margin: 18px 0 24px;
 }
 .cal-add-label {
   display: block;

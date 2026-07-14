@@ -140,7 +140,7 @@ function contactsBlock(ctx) {
 
 function cancelButton(url) {
   if (!url) return ''
-  return `<p style="margin:22px 0 4px"><a href="${esc(url)}" style="display:inline-block;background:#eee;color:#b3261e;text-decoration:none;padding:10px 18px;border-radius:8px;font-weight:600;font-size:14px">Cancel booking</a></p>`
+  return `<p style="margin:22px 0 4px"><a href="${esc(url)}" style="display:inline-block;background:#ffffff;border:1px solid #d0d0d0;color:#c0362c;text-decoration:none;padding:9px 18px;border-radius:8px;font-weight:400;font-size:14px">Cancel booking</a></p>`
 }
 
 function layout(ctx, { title, intro, cancelUrl: cUrl, showContacts }) {

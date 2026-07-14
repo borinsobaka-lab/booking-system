@@ -40,7 +40,9 @@ export function BookingWizard({
 }: {
   flow: Flow
   onExit: () => void
-  onBooked: (sel: Required<Pick<Selection, 'serviceId' | 'specialistId' | 'date' | 'start'>> & BookingForm) => void
+  onBooked: (
+    sel: Required<Pick<Selection, 'serviceId' | 'specialistId' | 'date' | 'start'>> & BookingForm,
+  ) => void | Promise<void>
 }) {
   const { t } = useI18n()
   const steps = FLOWS[flow]
@@ -488,10 +490,13 @@ function ConfirmStep({
   onBook,
 }: {
   sel: Selection
-  onBook: (v: Required<Pick<Selection, 'serviceId' | 'specialistId' | 'date' | 'start'>> & BookingForm) => void
+  onBook: (
+    v: Required<Pick<Selection, 'serviceId' | 'specialistId' | 'date' | 'start'>> & BookingForm,
+  ) => void | Promise<void>
 }) {
   const db = useDB()
   const { lang, t } = useI18n()
+  const [busy, setBusy] = useState(false)
   const [form, setForm] = useState<BookingForm>({
     clientName: '',
     clientPhone: '',
@@ -570,23 +575,28 @@ function ConfirmStep({
       <div className="wiz-footer">
         <button
           className="btn btn-primary btn-block btn-lg"
-          disabled={!canBook}
-          onClick={() =>
-            canBook &&
-            onBook({
-              serviceId: sel.serviceId!,
-              specialistId: sel.specialistId!,
-              date: sel.date!,
-              start: sel.start!,
-              clientName: form.clientName.trim(),
-              clientPhone: form.clientPhone.trim(),
-              clientEmail: form.clientEmail.trim(),
-              comment: form.comment.trim(),
-              consent: form.consent,
-            })
-          }
+          disabled={!canBook || busy}
+          onClick={async () => {
+            if (!canBook || busy) return
+            setBusy(true)
+            try {
+              await onBook({
+                serviceId: sel.serviceId!,
+                specialistId: sel.specialistId!,
+                date: sel.date!,
+                start: sel.start!,
+                clientName: form.clientName.trim(),
+                clientPhone: form.clientPhone.trim(),
+                clientEmail: form.clientEmail.trim(),
+                comment: form.comment.trim(),
+                consent: form.consent,
+              })
+            } finally {
+              setBusy(false)
+            }
+          }}
         >
-          {t('form.book')}
+          {busy ? <span className="btn-spinner" aria-label="…" /> : t('form.book')}
         </button>
       </div>
     </div>
