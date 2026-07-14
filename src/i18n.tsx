@@ -68,8 +68,8 @@ const DICT: Dict = {
     ru: 'Выбрать этого специалиста',
   },
   'specialist.closeBio': { en: 'Close bio', ka: 'ბიოგრაფიის დახურვა', ru: 'Закрыть биографию' },
-  'nearest': { en: 'Nearest slots', ka: 'უახლოესი დრო', ru: 'Ближайшие слоты' },
-  'today': { en: 'today', ka: 'დღეს', ru: 'сегодня' },
+  'nearest.for': { en: 'Nearest time for booking', ka: 'უახლოესი დრო ჩასაწერად', ru: 'Ближайшее время для записи' },
+  'otherTime': { en: 'Other time', ka: 'სხვა დრო', ru: 'другое время' },
 
   'empty.noSpecialists': {
     en: 'No specialists for this service yet.',
@@ -175,6 +175,18 @@ const WEEKDAYS_SHORT: Record<Lang, string[]> = {
   ka: ['ორშ', 'სამ', 'ოთხ', 'ხუთ', 'პარ', 'შაბ', 'კვი'],
   ru: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'],
 }
+// Короткие дни недели, индекс = Date.getDay() (0 = воскресенье) — «вс, 19 июл».
+const WEEKDAYS_SHORT_SUN: Record<Lang, string[]> = {
+  en: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+  ka: ['კვი', 'ორშ', 'სამ', 'ოთხ', 'ხუთ', 'პარ', 'შაბ'],
+  ru: ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'],
+}
+// Сокращённые названия месяцев — «19 июл».
+const MONTHS_SHORT: Record<Lang, string[]> = {
+  en: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+  ka: ['იან', 'თებ', 'მარ', 'აპრ', 'მაი', 'ივნ', 'ივლ', 'აგვ', 'სექ', 'ოქტ', 'ნოე', 'დეკ'],
+  ru: ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'],
+}
 // Полные названия дней, индекс = Date.getDay() (0 = воскресенье).
 const WEEKDAYS_LONG: Record<Lang, string[]> = {
   en: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
@@ -195,6 +207,12 @@ export function fmtMonthYear(year: number, month: number, lang: Lang): string {
 export function fmtDayShort(dateKey: string, lang: Lang): string {
   const d = fromDateKey(dateKey)
   return `${d.getDate()} ${MONTHS_GEN[lang][d.getMonth()]}`
+}
+
+/** Короткая дата с днём недели «вс, 19 июл». */
+export function fmtDayWeekdayShort(dateKey: string, lang: Lang): string {
+  const d = fromDateKey(dateKey)
+  return `${WEEKDAYS_SHORT_SUN[lang][d.getDay()]}, ${d.getDate()} ${MONTHS_SHORT[lang][d.getMonth()]}`
 }
 
 /** Короткие заголовки дней недели Пн…Вс на языке. */

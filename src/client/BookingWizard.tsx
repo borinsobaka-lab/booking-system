@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useDB, ratingOf } from '../db'
 import { Avatar, Stars } from '../ui'
 import { RichTextView } from '../RichText'
-import { useI18n, fmtDuration, fmtPrice, fmtFull, fmtMonthYear, weekdayHeaders, fmtReviewCount, fmtDayShort, LangSelect } from '../i18n'
+import { useI18n, fmtDuration, fmtPrice, fmtFull, fmtMonthYear, weekdayHeaders, fmtReviewCount, fmtDayWeekdayShort, LangSelect } from '../i18n'
 import { pick, specialistName } from '../localized'
 import { addMinutes, fromDateKey, toDateKey, todayKey } from '../time'
 import {
@@ -67,18 +67,36 @@ export function BookingWizard({
     })
   }
 
-  // Следующий шаг; если дата и время уже выбраны (например, слот на карточке
-  // мастера) — шаг «дата и время» пропускается.
-  const advanceFrom = (i: number, s: Selection) => {
-    let ni = i + 1
-    while (ni < steps.length && steps[ni] === 'datetime' && !!s.date && !!s.start) ni++
-    return Math.min(steps.length - 1, ni)
+  // Выполнено ли требование шага при текущем выборе.
+  const satisfied = (st: Step, s: Selection): boolean =>
+    st === 'specialist'
+      ? !!s.specialistId
+      : st === 'service'
+        ? !!s.serviceId
+        : st === 'datetime'
+          ? !!(s.date && s.start)
+          : true
+
+  // Следующий незаполненный шаг в порядке текущего пути. Если всё выбрано (в т.ч.
+  // время выбрано слотом на карточке мастера) — переходим к подтверждению.
+  const nextIndex = (s: Selection): number => {
+    for (let i = 0; i < steps.length; i++) {
+      if (steps[i] !== 'confirm' && !satisfied(steps[i], s)) return i
+    }
+    return steps.length - 1
   }
 
   const choose = (p: Partial<Selection>) => {
     const nsel = { ...sel, ...p }
     setSel(nsel)
-    setIndex((i) => advanceFrom(i, nsel))
+    setIndex(nextIndex(nsel))
+  }
+
+  // «Другое время»: выбрать мастера и сразу перейти к выбору даты и времени.
+  const datetimeIndex = steps.indexOf('datetime')
+  const pickOtherTime = (id: string) => {
+    setSel((s) => ({ ...s, specialistId: id }))
+    if (datetimeIndex >= 0) setIndex(datetimeIndex)
   }
 
   const progress = ((index + 1) / steps.length) * 100
@@ -114,6 +132,7 @@ export function BookingWizard({
               sel={sel}
               onPick={(id) => choose({ specialistId: id })}
               onPickSlot={(id, date, start) => choose({ specialistId: id, date, start })}
+              onPickOtherTime={pickOtherTime}
             />
           )}
           {step === 'service' && <ServiceStep sel={sel} onPick={(id) => choose({ serviceId: id })} />}
@@ -137,7 +156,7 @@ function CompactBrand({ onHome }: { onHome: () => void }) {
       <Avatar src={db.brand.avatar} name={name} size={40} />
       <div className="wiz-brand-info">
         <div className="wiz-brand-name">{name}</div>
-        {address && <div className="wiz-brand-address">📍 {address}</div>}
+        {address && <div className="wiz-brand-address">{address}</div>}
       </div>
     </button>
   )
@@ -148,15 +167,17 @@ function SpecialistStep({
   sel,
   onPick,
   onPickSlot,
+  onPickOtherTime,
 }: {
   sel: Selection
   onPick: (id: string) => void
   onPickSlot: (id: string, date: string, start: string) => void
+  onPickOtherTime: (id: string) => void
 }) {
   const db = useDB()
   const { lang, t } = useI18n()
   const [bioId, setBioId] = useState<string | null>(null)
-  const today = todayKey()
+  const [pickedId, setPickedId] = useState<string | null>(sel.specialistId ?? null)
   const list: Specialist[] = sel.serviceId ? specialistsDoing(sel.serviceId) : db.specialists
   const knowsTime = !!(sel.date && sel.start && sel.serviceId)
   const isFree = (sp: Specialist) => (knowsTime ? specialistFreeAt(sp.id, sel.serviceId!, sel.date!, sel.start!) : true)
@@ -189,47 +210,73 @@ function SpecialistStep({
 
   // Показываем ближайшие слоты, только если время ещё не выбрано.
   const showNearest = !sel.start
+  const picked = pickedId ? list.find((s) => s.id === pickedId && isFree(s)) : null
 
   return (
-    <div className="spec-list">
-      {list.map((sp) => {
-        const free = isFree(sp)
-        const rating = ratingOf(db.reviews, sp.id)
-        const nearest = showNearest && free ? nearestSlots(sp.id, sel.serviceId, 5) : null
-        return (
-          <div key={sp.id} className={`spec-row${free ? '' : ' unavailable'}`}>
-            <div className="spec-row-top">
-              <button className="spec-row-main" disabled={!free} onClick={() => free && onPick(sp.id)}>
-                <Avatar src={sp.avatar} name={specialistName(sp, lang)} size={56} dim={!free} />
-                <div className="spec-row-info">
-                  <div className="spec-row-name">{specialistName(sp, lang)}</div>
-                  <div className="spec-row-role">{pick(sp.role, lang)}</div>
-                  <RatingLine avg={rating.avg} count={rating.count} />
-                  {!free && <div className="spec-row-badge">{t('specialist.busy')}</div>}
-                </div>
-              </button>
-              <button className="spec-info-btn" onClick={() => setBioId(sp.id)} aria-label="info" title="info">
-                i
-              </button>
-            </div>
-            {nearest && (
-              <div className="spec-slots">
-                <div className="spec-slots-label">
-                  {t('nearest')} · {nearest.date === today ? t('today') : fmtDayShort(nearest.date, lang)}
-                </div>
-                <div className="spec-slots-chips">
-                  {nearest.starts.map((s) => (
-                    <button key={s} className="spec-slot" onClick={() => onPickSlot(sp.id, nearest.date, s)}>
-                      {s}
-                    </button>
-                  ))}
+    <>
+      <div className="spec-list">
+        {list.map((sp) => {
+          const free = isFree(sp)
+          const rating = ratingOf(db.reviews, sp.id)
+          const nearest = showNearest && free ? nearestSlots(sp.id, sel.serviceId, 5) : null
+          const isPicked = pickedId === sp.id
+          return (
+            <div key={sp.id} className={`spec-row${free ? '' : ' unavailable'}${isPicked ? ' selected' : ''}`}>
+              <div className="spec-row-top">
+                <button className="spec-row-main" disabled={!free} onClick={() => free && setPickedId(sp.id)}>
+                  <Avatar src={sp.avatar} name={specialistName(sp, lang)} size={56} dim={!free} />
+                  <div className="spec-row-info">
+                    <div className="spec-row-name">{specialistName(sp, lang)}</div>
+                    <div className="spec-row-role">{pick(sp.role, lang)}</div>
+                    <RatingLine avg={rating.avg} count={rating.count} />
+                    {!free && <div className="spec-row-badge">{t('specialist.busy')}</div>}
+                  </div>
+                </button>
+                <div className="spec-row-actions">
+                  <button className="spec-info-btn" onClick={() => setBioId(sp.id)} aria-label="info" title="info">
+                    i
+                  </button>
+                  {/* Чекбокс выбора мастера: клик по нему или по карточке отмечает мастера. */}
+                  <button
+                    className={`spec-check${isPicked ? ' on' : ''}`}
+                    disabled={!free}
+                    aria-pressed={isPicked}
+                    aria-label="select"
+                    onClick={() => free && setPickedId(sp.id)}
+                  >
+                    {isPicked ? '✓' : ''}
+                  </button>
                 </div>
               </div>
-            )}
-          </div>
-        )
-      })}
-    </div>
+              {nearest && (
+                <div className="spec-slots">
+                  <div className="spec-slots-label">
+                    {t('nearest.for')} {fmtDayWeekdayShort(nearest.date, lang)}:
+                  </div>
+                  <div className="spec-slots-chips">
+                    {nearest.starts.map((s) => (
+                      <button key={s} className="spec-slot" onClick={() => onPickSlot(sp.id, nearest.date, s)}>
+                        {s}
+                      </button>
+                    ))}
+                    <button className="spec-slot spec-slot-other" onClick={() => onPickOtherTime(sp.id)}>
+                      {t('otherTime')}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+      {picked && (
+        <div className="wiz-footer">
+          <button className="btn btn-primary btn-block btn-lg" onClick={() => onPick(picked.id)}>
+            {t('continue')}
+          </button>
+        </div>
+      )}
+    </>
   )
 }
 

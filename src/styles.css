@@ -1326,15 +1326,50 @@ textarea {
   border: 1.5px solid var(--border);
   border-radius: 16px;
   background: var(--surface);
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 .spec-row.unavailable {
   background: #fafafa;
+}
+.spec-row.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1.5px var(--accent);
 }
 .spec-row-top {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 12px 14px;
+}
+.spec-row-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+/* Чекбокс выбора мастера справа на карточке. */
+.spec-check {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: var(--surface);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, border-color 0.15s;
+}
+.spec-check.on {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.spec-check:disabled {
+  opacity: 0.4;
 }
 .spec-row-main {
   flex: 1;
@@ -1410,6 +1445,12 @@ textarea {
 }
 .spec-slot:hover {
   border-color: var(--accent);
+}
+/* «Другое время» — вариант чипа, ведёт на полный выбор даты и времени. */
+.spec-slot-other {
+  color: var(--accent-dark, var(--accent));
+  border-style: dashed;
+  font-weight: 700;
 }
 .spec-bio {
   display: flex;

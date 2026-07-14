@@ -142,7 +142,7 @@ function Banner({ loading }: { loading: boolean }) {
           <Avatar src={brand.avatar} name={name} size={96} />
         </div>
         <h1 className="brand-name">{name}</h1>
-        {address && <div className="brand-address">📍 {address}</div>}
+        {address && <div className="brand-address">{address}</div>}
       </div>
     </header>
   )
