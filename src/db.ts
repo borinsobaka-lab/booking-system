@@ -235,6 +235,25 @@ export function deleteService(id: string): void {
   })
 }
 
+/** Задать порядок услуг (перетаскивание карточек в админке). Порядок массива —
+ *  это и есть порядок показа услуг клиентам на витрине. */
+export function reorderServices(ids: string[]): void {
+  mutate((db) => {
+    const byId = new Map(db.services.map((s) => [s.id, s]))
+    const next: Service[] = []
+    for (const id of ids) {
+      const s = byId.get(id)
+      if (s) {
+        next.push(s)
+        byId.delete(id)
+      }
+    }
+    // Хвост: услуги, которых не было в переданном порядке — сохраняем.
+    for (const s of db.services) if (byId.has(s.id)) next.push(s)
+    db.services = next
+  })
+}
+
 // --- Мутации: специалисты ---
 
 export function saveSpecialist(s: Specialist): void {

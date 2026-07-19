@@ -499,6 +499,40 @@ textarea {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  position: relative;
+}
+.reorder-hint {
+  margin: -4px 0 12px;
+}
+.drag-handle {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 9px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: 18px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  /* важно: жест по ручке — перетаскивание, а не скролл страницы */
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.drag-handle:active {
+  cursor: grabbing;
+}
+.svc-card.dragging {
+  opacity: 0.7;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  outline: 2px solid var(--accent);
 }
 .svc-card-img {
   height: 130px;
