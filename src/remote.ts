@@ -89,6 +89,11 @@ export async function cancelBookingRemote(id: string): Promise<void> {
   await api('/api/bookings/cancel', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ id }) })
 }
 
+/** Отметить/снять оплату сеанса массажисту (нужна сессия владельца). */
+export async function setBookingPaid(id: string, paid: boolean): Promise<void> {
+  await api('/api/bookings/pay', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ id, paid }) })
+}
+
 export interface BookingLookup {
   booking: { id: string; date: string; start: string; end: string } | null
   brand: string

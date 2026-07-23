@@ -43,6 +43,8 @@ export interface Settings {
   phone?: string
   /** WhatsApp студии (номер или ссылка). */
   whatsapp?: string
+  /** Выплата массажисту за один проведённый сеанс (₾). По умолчанию 40. */
+  payoutPerSession?: number
 }
 
 /** Бренд/салон — то, что видит клиент на баннере. */
@@ -130,6 +132,8 @@ export interface Booking {
   reviewRequestSentAt?: number
   /** Когда клиент оставил оценку по этой записи (один отзыв на запись). */
   reviewSubmittedAt?: number
+  /** Когда владелец отметил сеанс как оплаченный массажисту (выплата за сеанс). */
+  paidAt?: number
   createdAt: number
 }
 

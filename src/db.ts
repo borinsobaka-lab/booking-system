@@ -341,6 +341,14 @@ export function cancelBookingLocal(id: string): void {
   })
 }
 
+/** Отметить/снять отметку об оплате сеанса массажисту (раздел «Прошедшие»). */
+export function setBookingPaidLocal(id: string, paid: boolean): void {
+  mutate((db) => {
+    const b = db.bookings.find((x) => x.id === id)
+    if (b) b.paidAt = paid ? Date.now() : undefined
+  })
+}
+
 /** Полный сброс (для отладки/демо). */
 export function resetDB(): void {
   state = emptyDB()

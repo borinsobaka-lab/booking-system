@@ -198,6 +198,28 @@ export async function handle(request, env, deps) {
       return json({ ok: true }, 200, env, request)
     }
 
+    // --- Отметка об оплате сеанса массажисту (только владелец) ---
+    if (path === '/api/bookings/pay' && method === 'POST') {
+      const session = await readSession(request, env, now())
+      if (!session) return json({ error: 'Требуется вход' }, 401, env, request)
+      if (session.role !== 'owner') return json({ error: 'Недостаточно прав' }, 403, env, request)
+      const b = await request.json().catch(() => null)
+      if (!b || !b.id) return json({ error: 'bad json' }, 400, env, request)
+      const paid = !!b.paid
+
+      let found = false
+      await store.update((data) => {
+        const bk = (data.bookings || []).find((x) => x.id === b.id)
+        if (!bk) return null
+        bk.paidAt = paid ? now() : undefined
+        found = true
+        return data
+      }, 'booking: mark paid')
+
+      if (!found) return json({ error: 'Запись не найдена' }, 404, env, request)
+      return json({ ok: true }, 200, env, request)
+    }
+
     // --- Клиент открывает запись по ссылке из письма (токен вместо сессии) ---
     if (path === '/api/bookings/lookup' && method === 'GET') {
       const id = url.searchParams.get('id') || ''

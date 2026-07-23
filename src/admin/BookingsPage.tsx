@@ -1,19 +1,25 @@
 import { useMemo, useState } from 'react'
-import { useDB, cancelBookingLocal, addBooking, uid } from '../db'
+import { useDB, cancelBookingLocal, setBookingPaidLocal, addBooking, uid } from '../db'
 import { isRemote } from '../config'
 import * as remote from '../remote'
 import { useAuth } from '../auth'
 import { useDeny } from './guard'
 import { Field, Modal, money, duration } from '../ui'
-import { todayKey, formatFull, weekdayLong, formatDayMonth, toDateKey, addMinutes } from '../time'
+import { todayKey, formatFull, weekdayLong, formatDayMonth, toMinutes, addMinutes } from '../time'
 import { freeSlots } from '../availability'
 import { pick, specialistName } from '../localized'
 import { Icon } from '../icons'
 import type { Booking, Lang } from '../types'
 
 const A: Lang = 'ru' // отображение контента в админке
+const DEFAULT_PAYOUT = 40 // ₾ за один проведённый сеанс
 
-type Tab = 'feed' | 'history' | 'cancelled'
+type Tab = 'current' | 'past' | 'cancelled'
+
+/** Прошёл ли сеанс к текущему моменту (по локальным часам админа). */
+function isPast(b: Booking, nowKey: string, nowMin: number): boolean {
+  return b.date < nowKey || (b.date === nowKey && toMinutes(b.end) <= nowMin)
+}
 
 /** Ключ клиента для подсчёта визитов: телефон → email → имя. */
 function clientKey(b: Booking): string {
@@ -54,16 +60,24 @@ export function BookingsPage() {
   const db = useDB()
   const { canManage } = useAuth()
   const [deny, denyModal] = useDeny()
-  const [tab, setTab] = useState<Tab>('feed')
+  const [tab, setTab] = useState<Tab>('current')
   const [detail, setDetail] = useState<Booking | null>(null)
   const [adding, setAdding] = useState(false)
 
   const visits = useMemo(() => computeVisits(db.bookings), [db.bookings])
   const today = todayKey()
+  const now = new Date()
+  const nowMin = now.getHours() * 60 + now.getMinutes()
+  const rate = db.settings.payoutPerSession ?? DEFAULT_PAYOUT
 
-  // Лента: сегодня всегда + будущие дни с записями, по возрастанию даты.
-  const active = db.bookings.filter((b) => b.status !== 'cancelled' && b.date >= today)
-  const feedDates = [...new Set([today, ...active.map((b) => b.date)])].sort()
+  const confirmed = db.bookings.filter((b) => b.status !== 'cancelled')
+  // Текущие: ещё не прошедшие. Лента — сегодня всегда + будущие дни с записями.
+  const current = confirmed.filter((b) => !isPast(b, today, nowMin))
+  const feedDates = [...new Set([today, ...current.map((b) => b.date)])].sort()
+  // Прошедшие: сеанс уже состоялся; свежие сверху.
+  const past = confirmed
+    .filter((b) => isPast(b, today, nowMin))
+    .sort((a, b) => (a.date !== b.date ? (a.date < b.date ? 1 : -1) : b.start < a.start ? -1 : 1))
 
   const cancel = async (b: Booking) => {
     if (!canManage) return deny()
@@ -78,6 +92,20 @@ export function BookingsPage() {
     }
     cancelBookingLocal(b.id)
     setDetail(null)
+  }
+
+  const togglePaid = async (b: Booking, paid: boolean) => {
+    if (!canManage) return deny()
+    if (isRemote()) {
+      try {
+        await remote.setBookingPaid(b.id, paid)
+      } catch (e) {
+        alert(e instanceof Error ? e.message : 'Не удалось изменить статус оплаты')
+        return
+      }
+    }
+    setBookingPaidLocal(b.id, paid)
+    setDetail((d) => (d && d.id === b.id ? { ...d, paidAt: paid ? Date.now() : undefined } : d))
   }
 
   return (
@@ -96,11 +124,11 @@ export function BookingsPage() {
       </header>
 
       <div className="segmented book-tabs">
-        <button className={tab === 'feed' ? 'active' : ''} onClick={() => setTab('feed')}>
-          Записи
+        <button className={tab === 'current' ? 'active' : ''} onClick={() => setTab('current')}>
+          Текущие
         </button>
-        <button className={tab === 'history' ? 'active' : ''} onClick={() => setTab('history')}>
-          История
+        <button className={tab === 'past' ? 'active' : ''} onClick={() => setTab('past')}>
+          Прошедшие
         </button>
         <button className={tab === 'cancelled' ? 'active' : ''} onClick={() => setTab('cancelled')}>
           Отмены
@@ -114,18 +142,17 @@ export function BookingsPage() {
           </div>
           <p>Добавьте специалистов и задайте им расписание — тогда здесь появятся записи.</p>
         </div>
-      ) : tab === 'feed' ? (
+      ) : tab === 'current' ? (
         <div className="feed">
           {feedDates.map((date) => {
-            const items = active.filter((b) => b.date === date).sort(byStart)
+            const items = current.filter((b) => b.date === date).sort(byStart)
             const isToday = date === today
             return (
               <section className="feed-day" key={date}>
                 <div className="feed-day-head">
                   <div className="feed-day-title">{isToday ? 'Сегодня' : formatDayMonth(date)}</div>
                   <div className="feed-day-sub">
-                    {weekdayLong(date)}
-                    {isToday ? `, ${formatDayMonth(date)}` : ''}
+                    {isToday ? 'Предстоящие' : weekdayLong(date)}
                   </div>
                 </div>
                 {items.length === 0 ? (
@@ -141,8 +168,8 @@ export function BookingsPage() {
             )
           })}
         </div>
-      ) : tab === 'history' ? (
-        <HistoryLog bookings={db.bookings} onOpen={setDetail} />
+      ) : tab === 'past' ? (
+        <PastTab past={past} rate={rate} canManage={canManage} onOpen={setDetail} onTogglePaid={togglePaid} />
       ) : (
         <BookingTable
           bookings={db.bookings
@@ -153,9 +180,149 @@ export function BookingsPage() {
         />
       )}
 
-      {detail && <BookingDetail booking={detail} canManage={canManage} onCancel={cancel} onClose={() => setDetail(null)} />}
+      {detail && (
+        <BookingDetail
+          booking={detail}
+          canManage={canManage}
+          rate={rate}
+          isPast={isPast(detail, today, nowMin)}
+          onCancel={cancel}
+          onTogglePaid={togglePaid}
+          onClose={() => setDetail(null)}
+        />
+      )}
       {adding && <ManualBooking date={today} onClose={() => setAdding(false)} />}
       {denyModal}
+    </div>
+  )
+}
+
+/** Вкладка «Прошедшие»: сводка по выплатам массажистам + список сеансов. */
+function PastTab({
+  past,
+  rate,
+  canManage,
+  onOpen,
+  onTogglePaid,
+}: {
+  past: Booking[]
+  rate: number
+  canManage: boolean
+  onOpen: (b: Booking) => void
+  onTogglePaid: (b: Booking, paid: boolean) => void
+}) {
+  const db = useDB()
+  const paidCount = past.filter((b) => b.paidAt).length
+  const unpaidCount = past.length - paidCount
+  const remaining = unpaidCount * rate
+
+  // Разбивка по мастерам: сколько сеансов и сколько ещё перевести.
+  const perSpec = new Map<string, { total: number; paid: number }>()
+  for (const b of past) {
+    const st = perSpec.get(b.specialistId) || { total: 0, paid: 0 }
+    st.total += 1
+    if (b.paidAt) st.paid += 1
+    perSpec.set(b.specialistId, st)
+  }
+
+  if (past.length === 0) return <div className="feed-empty muted">Прошедших сеансов пока нет.</div>
+
+  return (
+    <div className="past">
+      <div className="payout">
+        <div className="payout-head">
+          <div>
+            <div className="payout-remaining">{money(remaining)}</div>
+            <div className="muted small">осталось перевести массажистам</div>
+          </div>
+          <div className="payout-counts">
+            <div>
+              Прошло <b>{past.length}</b> сеанс.
+            </div>
+            <div className="muted small">
+              оплачено {paidCount} · осталось {unpaidCount} · {money(rate)}/сеанс
+            </div>
+          </div>
+        </div>
+        {perSpec.size > 0 && (
+          <div className="payout-specs">
+            {db.specialists
+              .filter((sp) => perSpec.has(sp.id))
+              .map((sp) => {
+                const st = perSpec.get(sp.id)!
+                const rem = (st.total - st.paid) * rate
+                return (
+                  <div className="payout-spec" key={sp.id}>
+                    <span className="payout-spec-name">{specialistName(sp, A)}</span>
+                    <span className="muted small">
+                      {st.paid}/{st.total} оплачено
+                    </span>
+                    <b className={rem === 0 ? 'muted' : ''}>{money(rem)}</b>
+                  </div>
+                )
+              })}
+          </div>
+        )}
+      </div>
+
+      <div className="past-list">
+        {past.map((b) => (
+          <PastRow key={b.id} booking={b} rate={rate} canManage={canManage} onOpen={() => onOpen(b)} onTogglePaid={onTogglePaid} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function PastRow({
+  booking,
+  rate,
+  canManage,
+  onOpen,
+  onTogglePaid,
+}: {
+  booking: Booking
+  rate: number
+  canManage: boolean
+  onOpen: () => void
+  onTogglePaid: (b: Booking, paid: boolean) => void
+}) {
+  const db = useDB()
+  const svc = db.services.find((s) => s.id === booking.serviceId)
+  const sp = db.specialists.find((s) => s.id === booking.specialistId)
+  const paid = !!booking.paidAt
+  return (
+    <div className={`past-row${paid ? ' paid' : ''}`}>
+      <button className="past-row-main" onClick={onOpen}>
+        <div className="bh-date">
+          <b>{formatDayMonth(booking.date)}</b>
+          <span className="muted">{booking.start}</span>
+        </div>
+        <div className="bh-main">
+          <div>{booking.clientName || 'Без имени'}</div>
+          <div className="muted small">
+            {svc ? pick(svc.name, A) : '—'} · {sp ? specialistName(sp, A) : '—'}
+          </div>
+        </div>
+      </button>
+      <div className="past-pay">
+        {paid ? (
+          <>
+            <span className="badge badge-ok">Оплачено</span>
+            {canManage && (
+              <button className="linkbtn undo-pay" title="Отменить оплату" onClick={() => onTogglePaid(booking, false)}>
+                отменить
+              </button>
+            )}
+          </>
+        ) : canManage ? (
+          <button className="btn btn-sm btn-pay" onClick={() => onTogglePaid(booking, true)}>
+            Оплатить · {money(rate)}
+          </button>
+        ) : (
+          <span className="muted small">{money(rate)}</span>
+        )}
+      </div>
     </div>
   )
 }
@@ -190,59 +357,6 @@ function FeedCard({ booking, visit, onOpen }: { booking: Booking; visit?: Visit;
         </div>
       </div>
     </button>
-  )
-}
-
-function fmtStamp(ms?: number): string {
-  if (!ms) return ''
-  const d = new Date(ms)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${formatDayMonth(toDateKey(d))}, ${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
-
-interface Event {
-  key: string
-  type: 'created' | 'cancelled'
-  at: number
-  booking: Booking
-}
-
-/** Журнал действий: кто записался/отменил, новые сверху. */
-function HistoryLog({ bookings, onOpen }: { bookings: Booking[]; onOpen: (b: Booking) => void }) {
-  const db = useDB()
-  const events = useMemo(() => {
-    const evs: Event[] = []
-    for (const b of bookings) {
-      evs.push({ key: b.id + ':c', type: 'created', at: b.createdAt || 0, booking: b })
-      if (b.status === 'cancelled') evs.push({ key: b.id + ':x', type: 'cancelled', at: b.cancelledAt || b.createdAt || 0, booking: b })
-    }
-    return evs.sort((a, b) => b.at - a.at)
-  }, [bookings])
-
-  if (events.length === 0) return <div className="feed-empty muted">Действий пока нет.</div>
-  return (
-    <div className="history-log">
-      {events.map((e) => {
-        const svc = db.services.find((s) => s.id === e.booking.serviceId)
-        const sp = db.specialists.find((s) => s.id === e.booking.specialistId)
-        const cancelled = e.type === 'cancelled'
-        return (
-          <button className="hist-event" key={e.key} onClick={() => onOpen(e.booking)}>
-            <span className={`hist-dot ${cancelled ? 'x' : 'c'}`} />
-            <div className="hist-main">
-              <div className="hist-line">
-                <b>{e.booking.clientName || 'Клиент'}</b> {cancelled ? 'отменил запись' : 'записался'}
-              </div>
-              <div className="hist-sub muted">
-                {svc ? pick(svc.name, A) : 'услуга'} · {sp ? specialistName(sp, A) : '—'} · {formatDayMonth(e.booking.date)}{' '}
-                {e.booking.start}
-              </div>
-              {e.at > 0 && <div className="hist-time muted small">{fmtStamp(e.at)}</div>}
-            </div>
-          </button>
-        )
-      })}
-    </div>
   )
 }
 
@@ -289,18 +403,26 @@ function BookingTable({
 function BookingDetail({
   booking,
   canManage,
+  rate,
+  isPast,
   onCancel,
+  onTogglePaid,
   onClose,
 }: {
   booking: Booking
   canManage: boolean
+  rate: number
+  isPast: boolean
   onCancel: (b: Booking) => void
+  onTogglePaid: (b: Booking, paid: boolean) => void
   onClose: () => void
 }) {
   const db = useDB()
   const svc = db.services.find((s) => s.id === booking.serviceId)
   const sp = db.specialists.find((s) => s.id === booking.specialistId)
   const cancelled = booking.status === 'cancelled'
+  const paid = !!booking.paidAt
+  const showPayout = isPast && !cancelled
   return (
     <Modal title="Запись" onClose={onClose}>
       <div className="detail">
@@ -345,9 +467,29 @@ function BookingDetail({
           <dd>
             <span className={`badge ${cancelled ? '' : 'badge-ok'}`}>{cancelled ? 'отменена' : 'подтверждена'}</span>
           </dd>
+          {showPayout && (
+            <>
+              <dt>Оплата массажисту</dt>
+              <dd>
+                {paid ? (
+                  <span className="badge badge-ok">оплачено · {money(rate)}</span>
+                ) : (
+                  <span className="muted">не оплачено · {money(rate)}</span>
+                )}
+              </dd>
+            </>
+          )}
         </dl>
         <div className="form-actions">
-          {!cancelled && canManage && (
+          {showPayout && canManage && (
+            <button
+              className={paid ? 'btn' : 'btn btn-pay'}
+              onClick={() => onTogglePaid(booking, !paid)}
+            >
+              {paid ? 'Отменить оплату' : `Оплатить · ${money(rate)}`}
+            </button>
+          )}
+          {!cancelled && !isPast && canManage && (
             <button className="btn btn-danger" onClick={() => onCancel(booking)}>
               Отменить запись
             </button>

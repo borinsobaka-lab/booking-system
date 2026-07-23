@@ -241,6 +241,30 @@ test('self-cancel: lookup и cancel-public по токену из письма',
   assert.equal(store._peek().bookings[0].status, 'cancelled')
 })
 
+test('pay: только владелец отмечает оплату сеанса; тумблер paidAt', async () => {
+  const store = await seededStore()
+  const r1 = await call(store, 'POST', '/api/bookings', {
+    body: { specialistId: 'p1', serviceId: 's1', date: '2026-07-13', start: '10:00', clientName: 'М', clientPhone: '+1', consent: true },
+  })
+  const id = r1.body.booking.id
+  // без сессии — 401
+  const noauth = await call(store, 'POST', '/api/bookings/pay', { body: { id, paid: true } })
+  assert.equal(noauth.status, 401)
+  const login = await call(store, 'POST', '/api/auth/login', { body: { username: 'owner', password: 'pw' } })
+  const token = login.body.token
+  // отметить оплаченным
+  const ok = await call(store, 'POST', '/api/bookings/pay', { token, body: { id, paid: true } })
+  assert.equal(ok.status, 200)
+  assert.ok(store._peek().bookings[0].paidAt)
+  // снять отметку
+  const off = await call(store, 'POST', '/api/bookings/pay', { token, body: { id, paid: false } })
+  assert.equal(off.status, 200)
+  assert.equal(store._peek().bookings[0].paidAt, undefined)
+  // несуществующая запись — 404
+  const nf = await call(store, 'POST', '/api/bookings/pay', { token, body: { id: 'nope', paid: true } })
+  assert.equal(nf.status, 404)
+})
+
 test('review: lookup и submit по токену из письма создают отзыв', async () => {
   const store = await seededStore()
   const r1 = await call(store, 'POST', '/api/bookings', {

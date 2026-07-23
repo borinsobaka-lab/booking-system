@@ -2311,6 +2311,103 @@ textarea {
   min-width: 0;
 }
 
+/* ===== Прошедшие: выплаты массажисту ===== */
+.past {
+  max-width: 640px;
+}
+.payout {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 14px;
+}
+.payout-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.payout-remaining {
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--accent-dark);
+}
+.payout-counts {
+  text-align: right;
+  font-size: 14px;
+}
+.payout-specs {
+  margin-top: 14px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.payout-spec {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+}
+.payout-spec-name {
+  font-weight: 600;
+}
+.payout-spec b {
+  margin-left: auto;
+  white-space: nowrap;
+}
+.past-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.past-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 8px 12px;
+}
+.past-row.paid {
+  background: var(--accent-soft);
+  border-color: transparent;
+}
+.past-row-main {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  text-align: left;
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  padding: 4px 0;
+}
+.past-pay {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex: none;
+}
+.btn-pay {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  white-space: nowrap;
+}
+.btn-pay:hover {
+  background: var(--accent-dark);
+}
+.undo-pay {
+  font-size: 12px;
+}
+
 /* ===== История: журнал действий ===== */
 .history-log {
   display: flex;

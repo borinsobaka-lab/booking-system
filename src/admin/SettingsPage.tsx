@@ -136,6 +136,23 @@ export function SettingsPage() {
           (например, чтобы не бронировали визит «через 10 минут»). У администратора ограничения нет.
         </p>
       </div>
+
+      <header className="page-head">
+        <h1>Выплаты массажисту</h1>
+      </header>
+      <div className="settings-card">
+        <p className="muted">Сколько переводить массажисту за один проведённый сеанс. Используется в разделе «Записи» → «Прошедшие» для подсчёта суммы к переводу.</p>
+        <Field label="Выплата за сеанс, ₾">
+          <input
+            type="number"
+            min={0}
+            step={5}
+            value={db.settings.payoutPerSession ?? 40}
+            onChange={(e) => updateSettings({ payoutPerSession: Math.max(0, Number(e.target.value) || 0) })}
+            onBlur={flash}
+          />
+        </Field>
+      </div>
     </div>
   )
 }
