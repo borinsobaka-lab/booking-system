@@ -498,22 +498,23 @@ textarea {
 }
 .admin-brand {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 10px 16px;
-  font-weight: 700;
-  font-size: 16px;
-  letter-spacing: -0.01em;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  padding: 8px 10px 16px;
 }
 .admin-brand-logo {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  border-radius: var(--r-sm);
-  background: var(--accent-soft);
+  display: block;
+  height: 22px;
+  width: auto;
   color: var(--accent-dark);
+}
+.admin-brand-tag {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 .admin-nav {
   display: flex;
@@ -2844,8 +2845,14 @@ textarea {
   .admin-brand {
     padding: 0;
     margin-right: auto;
-    font-size: 16px;
     flex: none;
+  }
+  /* На мобильной шапке — только логотип, всегда на виду; подпись прячем. */
+  .admin-brand-logo {
+    height: 19px;
+  }
+  .admin-brand-tag {
+    display: none;
   }
   .admin-nav {
     display: none;

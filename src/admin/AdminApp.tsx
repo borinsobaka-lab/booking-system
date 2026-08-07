@@ -14,6 +14,7 @@ import { ReviewsPage } from './ReviewsPage'
 import { ClientsPage } from './ClientsPage'
 import { Avatar } from '../ui'
 import { Icon, type IconName } from '../icons'
+import { BrandLogo } from './BrandLogo'
 
 type Tab = 'bookings' | 'services' | 'specialists' | 'schedule' | 'reviews' | 'clients' | 'users' | 'settings'
 
@@ -84,10 +85,8 @@ export function AdminApp({ path }: { path: string }) {
     <div className="admin">
       <aside className="admin-side">
         <div className="admin-brand">
-          <span className="admin-brand-logo">
-            <Icon name="flower" size={22} />
-          </span>
-          <span className="admin-brand-name">Админка</span>
+          <BrandLogo className="admin-brand-logo" />
+          <span className="admin-brand-tag">Админ-панель</span>
         </div>
         <nav className="admin-nav">
           {visibleTabs.map((t) => (
