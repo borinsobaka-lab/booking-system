@@ -139,7 +139,9 @@ export function AdminApp({ path }: { path: string }) {
             className={`admin-bottomnav-item${tab === t.id ? ' active' : ''}`}
             onClick={() => navigate(t.path)}
           >
-            <Icon name={t.icon} size={20} />
+            <span className="admin-bottomnav-icon">
+              <Icon name={t.icon} size={20} />
+            </span>
             <span className="admin-bottomnav-label">{t.label}</span>
           </button>
         ))}
@@ -148,7 +150,9 @@ export function AdminApp({ path }: { path: string }) {
             className={`admin-bottomnav-item${tabInMore || moreOpen ? ' active' : ''}`}
             onClick={() => setMoreOpen(true)}
           >
-            <Icon name="more" size={20} />
+            <span className="admin-bottomnav-icon">
+              <Icon name="more" size={20} />
+            </span>
             <span className="admin-bottomnav-label">Ещё</span>
           </button>
         )}
