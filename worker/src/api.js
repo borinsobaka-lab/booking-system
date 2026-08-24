@@ -385,8 +385,19 @@ export async function handle(request, env, deps) {
 
       const { data } = await store.get()
       const u = (data.users || []).find((x) => x.username.toLowerCase() === username.toLowerCase())
-      // Нет пользователя, нет почты или не настроен Resend — тихо выходим.
-      if (!u || !u.email || !env.RESEND_API_KEY) return json(generic, 200, env, request)
+      // Диагностика (видна в логах Worker, не в ответе) — почему письмо могло не уйти.
+      if (!u) {
+        console.log('reset: пользователь с таким логином не найден:', username)
+        return json(generic, 200, env, request)
+      }
+      if (!u.email) {
+        console.log('reset: у пользователя не указана почта. login=', username)
+        return json(generic, 200, env, request)
+      }
+      if (!env.RESEND_API_KEY) {
+        console.log('reset: не задан секрет RESEND_API_KEY — письма не отправляются')
+        return json(generic, 200, env, request)
+      }
 
       // Готовим новый пароль ДО записи (хэширование асинхронно — вне мутатора).
       const newPassword = generatePassword()
@@ -396,7 +407,11 @@ export async function handle(request, env, deps) {
       // Сначала письмо: если отправить не удалось — пароль НЕ меняем,
       // чтобы не заблокировать доступ несуществующим паролем.
       const sent = await sendPasswordReset(env, data, u, newPassword)
-      if (!sent) return json(generic, 200, env, request)
+      if (!sent) {
+        console.log('reset: Resend не принял письмо (см. лог "Resend error" выше). to=', u.email)
+        return json(generic, 200, env, request)
+      }
+      console.log('reset: новый пароль отправлен. login=', username, 'to=', env.TEST_EMAIL || u.email)
 
       await store.update((cur) => {
         const cu = (cur.users || []).find((x) => x.id === u.id)
