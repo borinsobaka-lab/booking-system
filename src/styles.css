@@ -2638,6 +2638,15 @@ textarea {
   flex-direction: column;
   gap: 8px;
 }
+.load-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px 0 4px;
+  max-width: 640px;
+}
 .past-row {
   display: flex;
   align-items: center;

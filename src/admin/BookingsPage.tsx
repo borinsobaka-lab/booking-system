@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useDB, cancelBookingLocal, setBookingPaidLocal, setBookingMembershipLocal, addBooking, uid } from '../db'
 import { isRemote } from '../config'
 import * as remote from '../remote'
@@ -55,6 +55,39 @@ function computeVisits(bookings: Booking[]): Map<string, Visit> {
 }
 
 const byStart = (a: Booking, b: Booking) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0)
+
+const PAGE_SIZE = 30
+
+/** Кусочный показ длинного списка: рендерим по PAGE_SIZE, чтобы не лагало. */
+function usePaged<T>(items: T[], step = PAGE_SIZE) {
+  const [count, setCount] = useState(step)
+  const loadMore = useCallback(() => setCount((c) => c + step), [step])
+  return { visible: items.slice(0, count), shown: Math.min(count, items.length), total: items.length, hasMore: items.length > count, loadMore }
+}
+
+/** Кнопка «Показать ещё» + автоподгрузка при подходе к концу списка. */
+function LoadMore({ shown, total, onMore }: { shown: number; total: number; onMore: () => void }) {
+  const ref = useRef<HTMLDivElement | null>(null)
+  const cb = useRef(onMore)
+  cb.current = onMore
+  useEffect(() => {
+    const el = ref.current
+    if (!el || typeof IntersectionObserver === 'undefined') return
+    const io = new IntersectionObserver((e) => e[0]?.isIntersecting && cb.current(), { rootMargin: '320px' })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [])
+  return (
+    <div className="load-more" ref={ref}>
+      <button className="btn btn-sm" onClick={onMore}>
+        Показать ещё
+      </button>
+      <span className="muted small">
+        Показано {shown} из {total}
+      </span>
+    </div>
+  )
+}
 
 export function BookingsPage() {
   const db = useDB()
@@ -227,6 +260,8 @@ function PastTab({
   onTogglePaid: (b: Booking, paid: boolean) => void
 }) {
   const db = useDB()
+  const paged = usePaged(past)
+  // Сводка считается по ВСЕМ прошедшим (не только по показанным).
   const paidCount = past.filter((b) => b.paidAt).length
   const unpaidCount = past.length - paidCount
   const remaining = unpaidCount * rate
@@ -281,10 +316,11 @@ function PastTab({
       </div>
 
       <div className="past-list">
-        {past.map((b) => (
+        {paged.visible.map((b) => (
           <PastRow key={b.id} booking={b} rate={rate} canManage={canManage} onOpen={() => onOpen(b)} onTogglePaid={onTogglePaid} />
         ))}
       </div>
+      {paged.hasMore && <LoadMore shown={paged.shown} total={paged.total} onMore={paged.loadMore} />}
     </div>
   )
 }
@@ -389,10 +425,11 @@ function BookingTable({
   emptyText: string
 }) {
   const db = useDB()
+  const paged = usePaged(bookings)
   if (bookings.length === 0) return <div className="feed-empty muted">{emptyText}</div>
   return (
     <div className="book-history">
-      {bookings.map((b) => {
+      {paged.visible.map((b) => {
         const svc = db.services.find((s) => s.id === b.serviceId)
         const sp = db.specialists.find((s) => s.id === b.specialistId)
         return (
@@ -418,6 +455,7 @@ function BookingTable({
           </button>
         )
       })}
+      {paged.hasMore && <LoadMore shown={paged.shown} total={paged.total} onMore={paged.loadMore} />}
     </div>
   )
 }
