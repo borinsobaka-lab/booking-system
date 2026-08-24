@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useDB, cancelBookingLocal, setBookingPaidLocal, addBooking, uid } from '../db'
+import { useDB, cancelBookingLocal, setBookingPaidLocal, setBookingMembershipLocal, addBooking, uid } from '../db'
 import { isRemote } from '../config'
 import * as remote from '../remote'
 import { useAuth } from '../auth'
@@ -108,6 +108,20 @@ export function BookingsPage() {
     setDetail((d) => (d && d.id === b.id ? { ...d, paidAt: paid ? Date.now() : undefined } : d))
   }
 
+  const toggleMembership = async (b: Booking, on: boolean) => {
+    if (!canManage) return deny()
+    if (isRemote()) {
+      try {
+        await remote.setBookingMembership(b.id, on)
+      } catch (e) {
+        alert(e instanceof Error ? e.message : 'Не удалось изменить отметку')
+        return
+      }
+    }
+    setBookingMembershipLocal(b.id, on)
+    setDetail((d) => (d && d.id === b.id ? { ...d, membership: on || undefined } : d))
+  }
+
   return (
     <div className="page">
       <header className="page-head">
@@ -188,6 +202,7 @@ export function BookingsPage() {
           isPast={isPast(detail, today, nowMin)}
           onCancel={cancel}
           onTogglePaid={togglePaid}
+          onToggleMembership={toggleMembership}
           onClose={() => setDetail(null)}
         />
       )}
@@ -299,7 +314,10 @@ function PastRow({
           <span className="muted">{booking.start}</span>
         </div>
         <div className="bh-main">
-          <div>{booking.clientName || 'Без имени'}</div>
+          <div>
+            {booking.clientName || 'Без имени'}
+            {booking.membership && <span className="badge badge-sub">по абонементу</span>}
+          </div>
           <div className="muted small">
             {svc ? pick(svc.name, A) : '—'} · {sp ? specialistName(sp, A) : '—'}
           </div>
@@ -349,6 +367,7 @@ function FeedCard({ booking, visit, onOpen }: { booking: Booking; visit?: Visit;
       <div className="feed-card-main">
         <div className="feed-card-client">
           <b>{booking.clientName || 'Без имени'}</b>
+          {booking.membership && <span className="badge badge-sub">по абонементу</span>}
           {vl.badge && <span className={`badge ${vl.badgeClass || ''}`}>{vl.badge}</span>}
         </div>
         {vl.text && <div className="feed-card-visit muted">{vl.text}</div>}
@@ -385,7 +404,10 @@ function BookingTable({
               </span>
             </div>
             <div className="bh-main">
-              <div>{b.clientName || 'Без имени'}</div>
+              <div>
+                {b.clientName || 'Без имени'}
+                {b.membership && <span className="badge badge-sub">по абонементу</span>}
+              </div>
               <div className="muted small">
                 {svc ? pick(svc.name, A) : '—'} · {sp ? specialistName(sp, A) : '—'}
               </div>
@@ -407,6 +429,7 @@ function BookingDetail({
   isPast,
   onCancel,
   onTogglePaid,
+  onToggleMembership,
   onClose,
 }: {
   booking: Booking
@@ -415,6 +438,7 @@ function BookingDetail({
   isPast: boolean
   onCancel: (b: Booking) => void
   onTogglePaid: (b: Booking, paid: boolean) => void
+  onToggleMembership: (b: Booking, on: boolean) => void
   onClose: () => void
 }) {
   const db = useDB()
@@ -422,6 +446,7 @@ function BookingDetail({
   const sp = db.specialists.find((s) => s.id === booking.specialistId)
   const cancelled = booking.status === 'cancelled'
   const paid = !!booking.paidAt
+  const membership = !!booking.membership
   const showPayout = isPast && !cancelled
   return (
     <Modal title="Запись" onClose={onClose}>
@@ -466,6 +491,7 @@ function BookingDetail({
           <dt>Статус</dt>
           <dd>
             <span className={`badge ${cancelled ? '' : 'badge-ok'}`}>{cancelled ? 'отменена' : 'подтверждена'}</span>
+            {membership && <span className="badge badge-sub">по абонементу</span>}
           </dd>
           {showPayout && (
             <>
@@ -481,6 +507,11 @@ function BookingDetail({
           )}
         </dl>
         <div className="form-actions">
+          {!cancelled && canManage && (
+            <button className="btn" onClick={() => onToggleMembership(booking, !membership)}>
+              {membership ? 'Снять «по абонементу»' : 'Отметить по абонементу'}
+            </button>
+          )}
           {showPayout && canManage && (
             <button
               className={paid ? 'btn' : 'btn btn-pay'}

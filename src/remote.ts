@@ -104,6 +104,11 @@ export async function setBookingPaid(id: string, paid: boolean): Promise<void> {
   await api('/api/bookings/pay', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ id, paid }) })
 }
 
+/** Отметить/снять «по абонементу» (нужна сессия владельца). */
+export async function setBookingMembership(id: string, membership: boolean): Promise<void> {
+  await api('/api/bookings/membership', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ id, membership }) })
+}
+
 export interface BookingLookup {
   booking: { id: string; date: string; start: string; end: string } | null
   brand: string

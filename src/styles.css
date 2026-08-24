@@ -227,6 +227,11 @@ textarea {
   background: var(--ok-soft);
   color: var(--ok);
 }
+/* «По абонементу» — заметная заливная метка (ставит только владелец). */
+.badge-sub {
+  background: var(--accent);
+  color: #fff;
+}
 .chip {
   display: inline-block;
   font-size: 12px;

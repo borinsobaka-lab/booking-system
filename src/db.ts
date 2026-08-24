@@ -349,6 +349,14 @@ export function setBookingPaidLocal(id: string, paid: boolean): void {
   })
 }
 
+/** Отметить/снять «по абонементу» (только владелец). */
+export function setBookingMembershipLocal(id: string, membership: boolean): void {
+  mutate((db) => {
+    const b = db.bookings.find((x) => x.id === id)
+    if (b) b.membership = membership ? true : undefined
+  })
+}
+
 /** Полный сброс (для отладки/демо). */
 export function resetDB(): void {
   state = emptyDB()

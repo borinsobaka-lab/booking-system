@@ -317,6 +317,34 @@ test('pay: только владелец отмечает оплату сеан�
   assert.equal(nf.status, 404)
 })
 
+test('membership: только владелец ставит метку «по абонементу»; сотрудник — 403', async () => {
+  const store = await seededStore()
+  const r1 = await call(store, 'POST', '/api/bookings', {
+    body: { specialistId: 'p1', serviceId: 's1', date: '2026-07-13', start: '10:00', clientName: 'М', clientPhone: '+1', consent: true },
+  })
+  const id = r1.body.booking.id
+  // без сессии — 401
+  const noauth = await call(store, 'POST', '/api/bookings/membership', { body: { id, membership: true } })
+  assert.equal(noauth.status, 401)
+  // сотрудник (не владелец) — 403
+  const salt = 'm'
+  const ph = await hashPassword('mpw', salt)
+  store._peek().users.push({ id: 'm1', role: 'staff', username: 'nino', salt, passwordHash: ph, name: 'Нино', createdAt: 3 })
+  const mlogin = await call(store, 'POST', '/api/auth/login', { body: { username: 'nino', password: 'mpw' } })
+  const forbid = await call(store, 'POST', '/api/bookings/membership', { token: mlogin.body.token, body: { id, membership: true } })
+  assert.equal(forbid.status, 403)
+  assert.equal(store._peek().bookings[0].membership, undefined)
+  // владелец ставит и снимает метку
+  const login = await call(store, 'POST', '/api/auth/login', { body: { username: 'owner', password: 'pw' } })
+  const token = login.body.token
+  const on = await call(store, 'POST', '/api/bookings/membership', { token, body: { id, membership: true } })
+  assert.equal(on.status, 200)
+  assert.equal(store._peek().bookings[0].membership, true)
+  const off = await call(store, 'POST', '/api/bookings/membership', { token, body: { id, membership: false } })
+  assert.equal(off.status, 200)
+  assert.equal(store._peek().bookings[0].membership, undefined)
+})
+
 test('review: lookup и submit по токену из письма создают отзыв', async () => {
   const store = await seededStore()
   const r1 = await call(store, 'POST', '/api/bookings', {
