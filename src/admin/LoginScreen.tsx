@@ -4,7 +4,7 @@ import { navigate } from '../router'
 import { Field } from '../ui'
 
 /** Вход в админку по логину и паролю. */
-export function LoginScreen() {
+export function LoginScreen({ notice }: { notice?: string }) {
   const { login } = useAuth()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -26,6 +26,7 @@ export function LoginScreen() {
         <div className="auth-logo">💆</div>
         <h1>Вход в админку</h1>
         <p className="muted">Введите выданные вам логин и пароль.</p>
+        {notice && <div className="auth-notice">{notice}</div>}
         <Field label="Логин">
           <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" required />
         </Field>

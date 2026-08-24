@@ -3,6 +3,7 @@ import { useAuth, roleLabel } from '../auth'
 import { navigate, ADMIN_BASE } from '../router'
 import { isRemote } from '../config'
 import { enterAdmin, stopPersisting } from '../session'
+import { isAuthError } from '../remote'
 import { LoginScreen } from './LoginScreen'
 import { BookingsPage } from './BookingsPage'
 import { ServicesPage } from './ServicesPage'
@@ -45,6 +46,7 @@ export function AdminApp({ path }: { path: string }) {
   const { user, ready, logout, canManageUsers } = useAuth()
 
   const [moreOpen, setMoreOpen] = useState(false)
+  const [expired, setExpired] = useState(false)
   // remote-режим: подгрузить полные данные и включить сохранение на сервер,
   // когда сотрудник авторизован (в т.ч. при возврате в админку с витрины).
   const [dataReady, setDataReady] = useState(!isRemote())
@@ -57,7 +59,18 @@ export function AdminApp({ path }: { path: string }) {
     setDataReady(false)
     let alive = true
     enterAdmin()
-      .catch((e) => console.error('Не удалось загрузить данные:', e))
+      .catch((e) => {
+        if (!alive) return
+        // Сессия истекла/недействительна: сервер вернул 401/403. Чтобы не
+        // показывать пустую админку, чистим сессию и просим войти заново.
+        if (isAuthError(e)) {
+          setExpired(true)
+          stopPersisting()
+          logout()
+        } else {
+          console.error('Не удалось загрузить данные:', e)
+        }
+      })
       .finally(() => alive && setDataReady(true))
     return () => {
       alive = false
@@ -72,7 +85,8 @@ export function AdminApp({ path }: { path: string }) {
   if (!ready) return <AdminLoading />
   // Регистрации нет: если не авторизован — только вход. Суперадминистратор
   // заводится вручную (worker/seed-owner.mjs), сотрудники — внутри панели.
-  if (!user) return <LoginScreen />
+  if (!user)
+    return <LoginScreen notice={expired ? 'Сессия истекла. Войдите снова, чтобы продолжить.' : undefined} />
   if (!dataReady) return <AdminLoading />
 
   const tab = tabForPath(path)

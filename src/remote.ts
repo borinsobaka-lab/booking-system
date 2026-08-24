@@ -39,8 +39,18 @@ async function api(path: string, opts: RequestInit = {}): Promise<any> {
   })
   const text = await res.text()
   const body = text ? JSON.parse(text) : null
-  if (!res.ok) throw new Error(body?.error || `Ошибка сервера (${res.status})`)
+  if (!res.ok) {
+    const err = new Error(body?.error || `Ошибка сервера (${res.status})`) as Error & { status?: number }
+    err.status = res.status
+    throw err
+  }
   return body
+}
+
+/** Истёкшая/недействительная сессия — сервер отвечает 401/403. */
+export function isAuthError(e: unknown): boolean {
+  const s = (e as { status?: number } | null)?.status
+  return s === 401 || s === 403
 }
 
 function authHeaders(): Record<string, string> {
