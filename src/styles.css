@@ -2758,10 +2758,31 @@ textarea {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 10px 14px;
+}
+/* Приглашения вернуться: справа на десктопе, отдельной строкой на телефоне. */
+.client-invite {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  margin-left: 8px;
+}
+.client-invite-btns {
+  display: flex;
+  gap: 6px;
+}
+.client-invite-meta {
+  white-space: nowrap;
+}
+.invite-done {
+  color: var(--ok);
+  font-weight: 600;
 }
 .client-row-main {
   flex: 1;
@@ -2992,6 +3013,21 @@ textarea {
   .pick-grid,
   .showcase-grid {
     grid-template-columns: 1fr 1fr;
+  }
+  /* Приглашения — отдельной строкой под клиентом, кнопки во всю ширину. */
+  .client-invite {
+    flex-basis: 100%;
+    align-items: stretch;
+    margin: 8px 0 0;
+    padding-top: 10px;
+    border-top: 1px dashed var(--border);
+  }
+  .client-invite-meta {
+    white-space: normal;
+    margin-top: 6px;
+  }
+  .client-invite-btns .btn {
+    flex: 1;
   }
   .form-row {
     flex-direction: column;

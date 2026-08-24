@@ -166,6 +166,16 @@ export interface Review {
   createdAt: number
 }
 
+/** Ручное приглашение клиента вернуться (учёт по email, чтобы не слать часто). */
+export interface ClientInvite {
+  /** Email клиента (нижний регистр) — ключ. */
+  email: string
+  /** Когда отправили последнее приглашение (ms). */
+  lastAt: number
+  /** Сколько всего приглашений отправлено. */
+  count: number
+}
+
 export interface DB {
   version: number
   users: User[]
@@ -176,4 +186,6 @@ export interface DB {
   schedules: DaySchedule[]
   bookings: Booking[]
   reviews: Review[]
+  /** Ручные приглашения клиентам (счётчик и дата последнего). */
+  clientInvites: ClientInvite[]
 }

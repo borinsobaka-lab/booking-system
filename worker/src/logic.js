@@ -260,6 +260,7 @@ export function emptyData() {
     schedules: [],
     bookings: [],
     reviews: [],
+    clientInvites: [],
   }
 }
 

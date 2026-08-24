@@ -17,7 +17,7 @@ import {
   verifyReviewToken,
   uid,
 } from './logic.js'
-import { notifyBookingCreated, notifyBookingCancelled, sendPasswordReset } from './email.js'
+import { notifyBookingCreated, notifyBookingCancelled, sendPasswordReset, sendClientInvite } from './email.js'
 
 function corsHeaders(env, request) {
   const origin = env.CORS_ORIGIN || request.headers.get('Origin') || '*'
@@ -243,6 +243,44 @@ export async function handle(request, env, deps) {
 
       if (!found) return json({ error: 'Запись не найдена' }, 404, env, request)
       return json({ ok: true }, 200, env, request)
+    }
+
+    // --- Ручное приглашение клиента вернуться (только владелец) ---
+    if (path === '/api/clients/invite' && method === 'POST') {
+      const session = await readSession(request, env, now())
+      if (!session) return json({ error: 'Требуется вход' }, 401, env, request)
+      if (session.role !== 'owner') return json({ error: 'Недостаточно прав' }, 403, env, request)
+      const body = await request.json().catch(() => null)
+      const email = body && body.email ? String(body.email).trim().toLowerCase() : ''
+      const lang = body && body.lang === 'ru' ? 'ru' : 'en'
+      const name = body && body.name ? String(body.name).slice(0, 200) : ''
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ error: 'Неверный email' }, 400, env, request)
+
+      const COOLDOWN = 14 * 24 * 60 * 60 * 1000 // 14 дней между ручными приглашениями
+      const { data } = await store.get()
+      const existing = (data.clientInvites || []).find((x) => x.email === email)
+      if (existing && now() - existing.lastAt < COOLDOWN) {
+        return json({ ok: false, cooldown: true, lastAt: existing.lastAt, count: existing.count }, 200, env, request)
+      }
+
+      const sent = await sendClientInvite(env, data, { to: email, name, lang })
+      if (!sent) return json({ error: 'Не удалось отправить приглашение' }, 502, env, request)
+
+      let rec = null
+      await store.update((cur) => {
+        if (!Array.isArray(cur.clientInvites)) cur.clientInvites = []
+        rec = cur.clientInvites.find((x) => x.email === email)
+        if (rec) {
+          rec.lastAt = now()
+          rec.count = (rec.count || 0) + 1
+        } else {
+          rec = { email, lastAt: now(), count: 1 }
+          cur.clientInvites.push(rec)
+        }
+        return cur
+      }, 'clients: invite')
+
+      return json({ ok: true, lastAt: rec.lastAt, count: rec.count }, 200, env, request)
     }
 
     // --- Клиент открывает запись по ссылке из письма (токен вместо сессии) ---
@@ -475,6 +513,8 @@ export async function handle(request, env, deps) {
         // чтобы отправлять письма и не терять брони при перезаписи из админки.
         next.bookings = current.bookings
         next.reviews = incoming.reviews ?? current.reviews
+        // Приглашения — только через /api/clients/invite (счётчик, письма).
+        next.clientInvites = current.clientInvites
 
         // Пользователей меняет только суперадминистратор. Секреты (salt/hash)
         // подтягиваем из текущих данных, если браузер их не прислал.

@@ -176,6 +176,43 @@ function layout(ctx, { title, intro, cancelUrl: cUrl, rateUrl: rUrl, showContact
 
 // --- Публичные хуки ---
 
+/** Ручное приглашение клиента вернуться (EN или RU). Возвращает true при отправке. */
+export async function sendClientInvite(env, data, { to, name, lang }) {
+  if (!env || !env.RESEND_API_KEY || !to) return false
+  const brand = loc(data.brand && data.brand.name) || 'NEBA'
+  const bookUrl = (env.CLIENT_BASE_URL || '').replace(/\/+$/, '') || null
+  const ru = lang === 'ru'
+  const nm = name ? esc(name) : ''
+  const t = ru
+    ? {
+        title: 'Давно вас не было!',
+        intro: `${nm ? nm + ', скучаем' : 'Скучаем'} по вам в ${esc(brand)}! Прошло уже какое-то время с вашего последнего сеанса — приглашаем снова на массаж. Позаботьтесь о себе.`,
+        cta: 'Записаться на массаж',
+        subject: `Приглашаем вернуться — ${brand}`,
+      }
+    : {
+        title: 'We miss you!',
+        intro: `${nm ? 'Hello ' + nm + '! ' : ''}It has been a while since your last visit to ${esc(brand)}. Treat yourself — book your next massage whenever suits you.`,
+        cta: 'Book a massage',
+        subject: `We'd love to see you again — ${brand}`,
+      }
+  const button = bookUrl
+    ? `<p style="margin:22px 0 4px"><a href="${esc(bookUrl)}" style="display:inline-block;background:#3b3b3b;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:600;font-size:15px">${t.cta}</a></p>`
+    : ''
+  const html = `<!doctype html><html><body style="margin:0;background:#f4f4f5;padding:24px;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#1c1c1e">
+  <table role="presentation" width="100%" style="max-width:540px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden">
+    <tr><td style="background:#3b3b3b;color:#fff;padding:20px 24px;font-size:18px;font-weight:700">${esc(brand)}</td></tr>
+    <tr><td style="padding:24px">
+      <h1 style="margin:0 0 8px;font-size:20px">${esc(t.title)}</h1>
+      <p style="margin:0 0 4px;color:#555;line-height:1.5">${t.intro}</p>
+      ${button}
+    </td></tr>
+    <tr><td style="padding:16px 24px;background:#fafafa;border-top:1px solid #eee;color:#9a9a9a;font-size:11px;line-height:1.6">${DISCLAIMER}</td></tr>
+  </table></body></html>`
+  const res = await sendEmail(env, { to, subject: t.subject, html })
+  return !!res
+}
+
 /** Восстановление пароля: письмо сотруднику с новым паролем (на русском).
  *  Возвращает true, если письмо действительно отправлено. */
 export async function sendPasswordReset(env, data, user, newPassword) {

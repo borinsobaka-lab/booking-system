@@ -345,6 +345,50 @@ test('membership: только владелец ставит метку «по �
   assert.equal(store._peek().bookings[0].membership, undefined)
 })
 
+test('clients/invite: только владелец; письмо, счётчик и кулдаун 14 дней', async () => {
+  const store = await seededStore()
+  const env = { ...ENV, RESEND_API_KEY: 're_x', CLIENT_BASE_URL: 'https://booking.neba.space' }
+  const callE = async (path, opts) => {
+    const res = await handle(req('POST', path, opts), env, deps(store))
+    const text = await res.text()
+    return { status: res.status, body: text ? JSON.parse(text) : null }
+  }
+  // без сессии — 401
+  assert.equal((await callE('/api/clients/invite', { body: { email: 'c@x.com', lang: 'ru' } })).status, 401)
+  // сотрудник — 403
+  const salt = 'm'
+  const ph = await hashPassword('mpw', salt)
+  store._peek().users.push({ id: 'm1', role: 'staff', username: 'nino', salt, passwordHash: ph, name: 'Нино', createdAt: 3 })
+  const mtoken = (await callE('/api/auth/login', { body: { username: 'nino', password: 'mpw' } })).body.token
+  assert.equal((await callE('/api/clients/invite', { token: mtoken, body: { email: 'c@x.com', lang: 'ru' } })).status, 403)
+
+  const m = mockResend()
+  try {
+    const token = (await callE('/api/auth/login', { body: { username: 'owner', password: 'pw' } })).body.token
+    // владелец приглашает — письмо ушло, счётчик = 1, email нормализован
+    const r1 = await callE('/api/clients/invite', { token, body: { email: 'C@x.com', lang: 'en', name: 'Мария' } })
+    assert.equal(r1.status, 200)
+    assert.equal(r1.body.ok, true)
+    assert.equal(r1.body.count, 1)
+    assert.equal(m.calls.length, 1)
+    assert.ok(m.calls[0].body.to.includes('c@x.com'))
+    assert.match(m.calls[0].body.html, /Book a massage/)
+    assert.match(m.calls[0].body.html, /booking\.neba\.space/)
+    assert.equal(store._peek().clientInvites.length, 1)
+    // повтор сразу — кулдаун: письма нет, счётчик не растёт
+    const r2 = await callE('/api/clients/invite', { token, body: { email: 'c@x.com', lang: 'ru' } })
+    assert.equal(r2.status, 200)
+    assert.equal(r2.body.ok, false)
+    assert.equal(r2.body.cooldown, true)
+    assert.equal(m.calls.length, 1)
+    assert.equal(store._peek().clientInvites[0].count, 1)
+    // неверный email — 400
+    assert.equal((await callE('/api/clients/invite', { token, body: { email: 'bad', lang: 'ru' } })).status, 400)
+  } finally {
+    m.restore()
+  }
+})
+
 test('review: lookup и submit по токену из письма создают отзыв', async () => {
   const store = await seededStore()
   const r1 = await call(store, 'POST', '/api/bookings', {

@@ -61,6 +61,7 @@ function emptyDB(): DB {
     schedules: [],
     bookings: [],
     reviews: [],
+    clientInvites: [],
   }
 }
 
@@ -354,6 +355,21 @@ export function setBookingMembershipLocal(id: string, membership: boolean): void
   mutate((db) => {
     const b = db.bookings.find((x) => x.id === id)
     if (b) b.membership = membership ? true : undefined
+  })
+}
+
+/** Записать факт ручного приглашения клиента (по email). */
+export function setClientInviteLocal(email: string, lastAt: number, count: number): void {
+  const key = email.trim().toLowerCase()
+  mutate((db) => {
+    if (!Array.isArray(db.clientInvites)) db.clientInvites = []
+    const rec = db.clientInvites.find((x) => x.email === key)
+    if (rec) {
+      rec.lastAt = lastAt
+      rec.count = count
+    } else {
+      db.clientInvites.push({ email: key, lastAt, count })
+    }
   })
 }
 

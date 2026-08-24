@@ -109,6 +109,22 @@ export async function setBookingMembership(id: string, membership: boolean): Pro
   await api('/api/bookings/membership', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ id, membership }) })
 }
 
+export interface InviteResult {
+  ok: boolean
+  cooldown?: boolean
+  lastAt?: number
+  count?: number
+}
+
+/** Отправить клиенту приглашение вернуться (EN/RU). Нужна сессия владельца. */
+export async function sendClientInvite(email: string, lang: 'en' | 'ru', name?: string): Promise<InviteResult> {
+  return api('/api/clients/invite', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ email, lang, name }),
+  })
+}
+
 export interface BookingLookup {
   booking: { id: string; date: string; start: string; end: string } | null
   brand: string
@@ -208,5 +224,6 @@ export function publicToDB(pub: any): DB {
       createdAt: 0,
     })),
     reviews: (pub.reviews ?? []).map((r: any) => ({ ...r, avatar: r.avatar ?? null, createdAt: 0 })),
+    clientInvites: [],
   }
 }
