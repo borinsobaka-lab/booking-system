@@ -49,6 +49,30 @@ export async function verifyPassword(password, salt, hash) {
   return (await hashPassword(password, salt)) === hash
 }
 
+function randomBytes(n) {
+  const b = new Uint8Array(n)
+  crypto.getRandomValues(b)
+  return b
+}
+
+/** Случайная соль (hex). */
+export function randomSalt() {
+  return Array.from(randomBytes(16))
+    .map((x) => x.toString(16).padStart(2, '0'))
+    .join('')
+}
+
+// Читаемый пароль без неоднозначных символов (0/O, 1/l/I).
+const PW_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789'
+
+/** Сгенерировать новый пароль для восстановления (по умолчанию 10 символов). */
+export function generatePassword(len = 10) {
+  const bytes = randomBytes(len)
+  let out = ''
+  for (let i = 0; i < len; i++) out += PW_ALPHABET[bytes[i] % PW_ALPHABET.length]
+  return out
+}
+
 // --- Сессии (HMAC-SHA256) ---
 
 async function hmac(secret, msg) {

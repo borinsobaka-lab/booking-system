@@ -166,6 +166,12 @@ export function logout() {
   setSession(null)
 }
 
+/** Запрос восстановления пароля: сервер шлёт новый пароль на почту сотрудника.
+ *  Ответ всегда «ок» (не раскрываем, существует ли логин). */
+export async function requestPasswordReset(username: string): Promise<void> {
+  await api('/api/auth/reset', { method: 'POST', body: JSON.stringify({ username }) })
+}
+
 export async function fetchAdminData(): Promise<DB> {
   const r = await api('/api/data', { headers: authHeaders() })
   return r.data as DB

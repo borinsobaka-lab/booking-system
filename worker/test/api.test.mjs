@@ -80,6 +80,58 @@ test('login: верный пароль — токен, неверный — 401'
   assert.equal(bad.status, 401)
 })
 
+function mockResend() {
+  const calls = []
+  const orig = globalThis.fetch
+  globalThis.fetch = async (url, opts) => {
+    calls.push({ url, body: JSON.parse(opts.body) })
+    return { ok: true, status: 200, json: async () => ({ id: 'em_' + calls.length }) }
+  }
+  return { calls, restore: () => (globalThis.fetch = orig) }
+}
+
+test('reset: с почтой — новый пароль на почту, старый больше не работает', async () => {
+  const store = await seededStore()
+  store._peek().users[0].email = 'owner@neba.ge'
+  const env = { ...ENV, RESEND_API_KEY: 're_x', EMAIL_FROM: 'NEBA <noreply@neba.space>' }
+  const m = mockResend()
+  try {
+    const res = await handle(req('POST', '/api/auth/reset', { body: { username: 'owner' } }), env, deps(store))
+    assert.equal(res.status, 200)
+    // письмо ушло на почту владельца
+    assert.equal(m.calls.length, 1)
+    assert.ok(m.calls[0].body.to.includes('owner@neba.ge'))
+    // достаём новый пароль из письма
+    const pw = m.calls[0].body.html.match(/padding:10px 16px">([^<]+)<\/span>/)[1]
+    assert.equal(pw.length, 10)
+    // старый пароль больше не подходит, новый — подходит
+    const oldLogin = await handle(req('POST', '/api/auth/login', { body: { username: 'owner', password: 'pw' } }), env, deps(store))
+    assert.equal(oldLogin.status, 401)
+    const newLogin = await handle(req('POST', '/api/auth/login', { body: { username: 'owner', password: pw } }), env, deps(store))
+    assert.equal(newLogin.status, 200)
+  } finally {
+    m.restore()
+  }
+})
+
+test('reset: без почты и по неизвестному логину — 200, но пароль не меняется, письма нет', async () => {
+  const store = await seededStore() // у владельца нет email
+  const env = { ...ENV, RESEND_API_KEY: 're_x' }
+  const m = mockResend()
+  try {
+    const res = await handle(req('POST', '/api/auth/reset', { body: { username: 'owner' } }), env, deps(store))
+    assert.equal(res.status, 200)
+    const nf = await handle(req('POST', '/api/auth/reset', { body: { username: 'ghost' } }), env, deps(store))
+    assert.equal(nf.status, 200)
+    assert.equal(m.calls.length, 0) // писем не было
+    // старый пароль по-прежнему работает
+    const login = await handle(req('POST', '/api/auth/login', { body: { username: 'owner', password: 'pw' } }), env, deps(store))
+    assert.equal(login.status, 200)
+  } finally {
+    m.restore()
+  }
+})
+
 test('public: без учёток и персональных данных', async () => {
   const store = await seededStore()
   const r = await call(store, 'GET', '/api/public')

@@ -8,13 +8,16 @@ import {
   leadOk,
   addMinutes,
   verifyPassword,
+  hashPassword,
+  randomSalt,
+  generatePassword,
   signSession,
   verifySession,
   verifyCancelToken,
   verifyReviewToken,
   uid,
 } from './logic.js'
-import { notifyBookingCreated, notifyBookingCancelled } from './email.js'
+import { notifyBookingCreated, notifyBookingCancelled, sendPasswordReset } from './email.js'
 
 function corsHeaders(env, request) {
   const origin = env.CORS_ORIGIN || request.headers.get('Origin') || '*'
@@ -370,6 +373,40 @@ export async function handle(request, env, deps) {
         env,
         request,
       )
+    }
+
+    // --- Восстановление пароля: по логину шлём новый пароль на почту сотрудника ---
+    if (path === '/api/auth/reset' && method === 'POST') {
+      const b = await request.json().catch(() => null)
+      const username = b && b.username ? String(b.username).trim() : ''
+      // Ответ всегда одинаковый — не раскрываем, существует ли логин/есть ли почта.
+      const generic = { ok: true }
+      if (!username) return json({ error: 'Введите логин' }, 400, env, request)
+
+      const { data } = await store.get()
+      const u = (data.users || []).find((x) => x.username.toLowerCase() === username.toLowerCase())
+      // Нет пользователя, нет почты или не настроен Resend — тихо выходим.
+      if (!u || !u.email || !env.RESEND_API_KEY) return json(generic, 200, env, request)
+
+      // Готовим новый пароль ДО записи (хэширование асинхронно — вне мутатора).
+      const newPassword = generatePassword()
+      const salt = randomSalt()
+      const passwordHash = await hashPassword(newPassword, salt)
+
+      // Сначала письмо: если отправить не удалось — пароль НЕ меняем,
+      // чтобы не заблокировать доступ несуществующим паролем.
+      const sent = await sendPasswordReset(env, data, u, newPassword)
+      if (!sent) return json(generic, 200, env, request)
+
+      await store.update((cur) => {
+        const cu = (cur.users || []).find((x) => x.id === u.id)
+        if (!cu) return null
+        cu.salt = salt
+        cu.passwordHash = passwordHash
+        return cur
+      }, 'auth: password reset')
+
+      return json(generic, 200, env, request)
     }
 
     // --- Данные для админки (нужна сессия) ---

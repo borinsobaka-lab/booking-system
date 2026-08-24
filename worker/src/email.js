@@ -176,6 +176,28 @@ function layout(ctx, { title, intro, cancelUrl: cUrl, rateUrl: rUrl, showContact
 
 // --- Публичные хуки ---
 
+/** Восстановление пароля: письмо сотруднику с новым паролем (на русском).
+ *  Возвращает true, если письмо действительно отправлено. */
+export async function sendPasswordReset(env, data, user, newPassword) {
+  if (!env || !env.RESEND_API_KEY || !user || !user.email) return false
+  const brand = loc(data.brand && data.brand.name) || 'NEBA'
+  const name = user.name ? esc(user.name) : ''
+  const html = `<!doctype html><html><body style="margin:0;background:#f4f4f5;padding:24px;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#1c1c1e">
+  <table role="presentation" width="100%" style="max-width:540px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden">
+    <tr><td style="background:#3b3b3b;color:#fff;padding:20px 24px;font-size:18px;font-weight:700">${esc(brand)} — админ-панель</td></tr>
+    <tr><td style="padding:24px">
+      <h1 style="margin:0 0 8px;font-size:20px">Восстановление пароля</h1>
+      <p style="margin:0 0 16px;color:#555;line-height:1.5">${name ? name + ', в' : 'В'}ы запросили новый пароль для входа в админ-панель. Вот он:</p>
+      <p style="margin:0 0 16px"><span style="display:inline-block;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:22px;font-weight:700;letter-spacing:2px;background:#f2f2f4;border:1px solid #e3e3e6;border-radius:8px;padding:10px 16px">${esc(newPassword)}</span></p>
+      <p style="margin:0 0 8px;color:#555;line-height:1.5">Логин: <b>${esc(user.username || '')}</b></p>
+      <p style="margin:0;color:#777;font-size:13px;line-height:1.6">Старый пароль больше не действует. Если вы не запрашивали восстановление — просто проигнорируйте это письмо и сообщите администратору.</p>
+    </td></tr>
+    <tr><td style="padding:16px 24px;background:#fafafa;border-top:1px solid #eee;color:#9a9a9a;font-size:11px;line-height:1.6">${DISCLAIMER}</td></tr>
+  </table></body></html>`
+  const res = await sendEmail(env, { to: user.email, subject: `Новый пароль — ${brand}`, html })
+  return !!res
+}
+
 /** При создании записи: письма клиенту, сотрудникам и мастеру. */
 export async function notifyBookingCreated(env, data, booking) {
   if (!env || !env.RESEND_API_KEY) return
