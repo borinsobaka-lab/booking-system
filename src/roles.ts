@@ -18,7 +18,13 @@ export function canEditSchedule(role: Role): boolean {
   return role === 'owner' || role === 'admin'
 }
 
-/** Кто правит всё остальное (услуги, специалисты, записи, бренд, учётки). */
+/** Кто работает с записями клиентов: отмена и отметки (оплата массажисту,
+ *  «по абонементу»). Владелец и администратор. */
+export function canManageBookings(role: Role): boolean {
+  return role === 'owner' || role === 'admin'
+}
+
+/** Кто правит всё остальное (услуги, специалисты, бренд, учётки, новые записи). */
 export function canManageAll(role: Role): boolean {
   return role === 'owner'
 }

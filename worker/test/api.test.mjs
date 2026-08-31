@@ -317,7 +317,7 @@ test('pay: только владелец отмечает оплату сеан�
   assert.equal(nf.status, 404)
 })
 
-test('membership: только владелец ставит метку «по абонементу»; сотрудник — 403', async () => {
+test('membership: сотрудник не ставит метку «по абонементу» — 403; владелец ставит и снимает', async () => {
   const store = await seededStore()
   const r1 = await call(store, 'POST', '/api/bookings', {
     body: { specialistId: 'p1', serviceId: 's1', date: '2026-07-13', start: '10:00', clientName: 'М', clientPhone: '+1', consent: true },
@@ -568,4 +568,59 @@ test('PUT /api/data: сотрудник не сохраняет ничего —
   const put = await call(store, 'PUT', '/api/data', { token, body: { data } })
   assert.equal(put.status, 403)
   assert.equal(store._peek().schedules.length, 1) // расписание на месте
+})
+
+test('администратор заводит, отменяет и отмечает записи наравне с владельцем', async () => {
+  const store = await seededStore()
+  const salt = 'a'
+  const ph = await hashPassword('apw', salt)
+  store._peek().users.push({ id: 'a1', role: 'admin', username: 'admin', salt, passwordHash: ph, name: 'Мари', createdAt: 3 })
+  const token = (await call(store, 'POST', '/api/auth/login', { body: { username: 'admin', password: 'apw' } })).body.token
+
+  const created = await call(store, 'POST', '/api/bookings', {
+    body: { specialistId: 'p1', serviceId: 's1', date: '2026-07-13', start: '10:00', clientName: 'М', clientPhone: '+1', consent: true },
+  })
+  const id = created.body.booking.id
+
+  // отметки: оплата массажисту и «по абонементу»
+  assert.equal((await call(store, 'POST', '/api/bookings/pay', { token, body: { id, paid: true } })).status, 200)
+  assert.ok(store._peek().bookings[0].paidAt)
+  assert.equal((await call(store, 'POST', '/api/bookings/membership', { token, body: { id, membership: true } })).status, 200)
+  assert.equal(store._peek().bookings[0].membership, true)
+
+  // заводит запись вручную
+  const create = await call(store, 'POST', '/api/bookings/create', {
+    token,
+    body: { specialistId: 'p1', serviceId: 's1', date: '2026-07-13', start: '12:00', clientName: 'Т' },
+  })
+  assert.equal(create.status, 200)
+  assert.equal(store._peek().bookings.length, 2)
+
+  // отмена — мягкая: запись остаётся со статусом cancelled
+  assert.equal((await call(store, 'POST', '/api/bookings/cancel', { token, body: { id } })).status, 200)
+  assert.equal(store._peek().bookings[0].status, 'cancelled')
+})
+
+test('сотрудник не заводит, не отменяет и не отмечает записи — 403', async () => {
+  const store = await seededStore()
+  const salt = 'm'
+  const ph = await hashPassword('mpw', salt)
+  store._peek().users.push({ id: 'm1', role: 'staff', username: 'nino', salt, passwordHash: ph, name: 'Нино', createdAt: 3 })
+  const token = (await call(store, 'POST', '/api/auth/login', { body: { username: 'nino', password: 'mpw' } })).body.token
+
+  const created = await call(store, 'POST', '/api/bookings', {
+    body: { specialistId: 'p1', serviceId: 's1', date: '2026-07-13', start: '10:00', clientName: 'М', clientPhone: '+1', consent: true },
+  })
+  const id = created.body.booking.id
+
+  const create = await call(store, 'POST', '/api/bookings/create', {
+    token,
+    body: { specialistId: 'p1', serviceId: 's1', date: '2026-07-13', start: '12:00' },
+  })
+  assert.equal(create.status, 403)
+  assert.equal((await call(store, 'POST', '/api/bookings/cancel', { token, body: { id } })).status, 403)
+  assert.equal((await call(store, 'POST', '/api/bookings/pay', { token, body: { id, paid: true } })).status, 403)
+  assert.equal(store._peek().bookings.length, 1)
+  assert.equal(store._peek().bookings[0].status, 'confirmed')
+  assert.equal(store._peek().bookings[0].paidAt, undefined)
 })

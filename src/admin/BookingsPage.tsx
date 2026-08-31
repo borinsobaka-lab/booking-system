@@ -91,7 +91,7 @@ function LoadMore({ shown, total, onMore }: { shown: number; total: number; onMo
 
 export function BookingsPage() {
   const db = useDB()
-  const { canManage } = useAuth()
+  const { canManageBookings } = useAuth()
   const [deny, denyModal] = useDeny()
   const [tab, setTab] = useState<Tab>('current')
   const [detail, setDetail] = useState<Booking | null>(null)
@@ -113,7 +113,7 @@ export function BookingsPage() {
     .sort((a, b) => (a.date !== b.date ? (a.date < b.date ? 1 : -1) : b.start < a.start ? -1 : 1))
 
   const cancel = async (b: Booking) => {
-    if (!canManage) return deny()
+    if (!canManageBookings) return deny()
     if (!confirm('Отменить эту запись?')) return
     if (isRemote()) {
       try {
@@ -128,7 +128,7 @@ export function BookingsPage() {
   }
 
   const togglePaid = async (b: Booking, paid: boolean) => {
-    if (!canManage) return deny()
+    if (!canManageBookings) return deny()
     if (isRemote()) {
       try {
         await remote.setBookingPaid(b.id, paid)
@@ -142,7 +142,7 @@ export function BookingsPage() {
   }
 
   const toggleMembership = async (b: Booking, on: boolean) => {
-    if (!canManage) return deny()
+    if (!canManageBookings) return deny()
     if (isRemote()) {
       try {
         await remote.setBookingMembership(b.id, on)
@@ -163,7 +163,7 @@ export function BookingsPage() {
         </div>
         <button
           className="btn btn-primary"
-          onClick={() => (canManage ? setAdding(true) : deny())}
+          onClick={() => (canManageBookings ? setAdding(true) : deny())}
           disabled={db.specialists.length === 0}
         >
           + Запись
@@ -216,7 +216,7 @@ export function BookingsPage() {
           })}
         </div>
       ) : tab === 'past' ? (
-        <PastTab past={past} rate={rate} canManage={canManage} onOpen={setDetail} onTogglePaid={togglePaid} />
+        <PastTab past={past} rate={rate} canEdit={canManageBookings} onOpen={setDetail} onTogglePaid={togglePaid} />
       ) : (
         <BookingTable
           bookings={db.bookings
@@ -230,7 +230,7 @@ export function BookingsPage() {
       {detail && (
         <BookingDetail
           booking={detail}
-          canManage={canManage}
+          canEdit={canManageBookings}
           rate={rate}
           isPast={isPast(detail, today, nowMin)}
           onCancel={cancel}
@@ -249,13 +249,13 @@ export function BookingsPage() {
 function PastTab({
   past,
   rate,
-  canManage,
+  canEdit,
   onOpen,
   onTogglePaid,
 }: {
   past: Booking[]
   rate: number
-  canManage: boolean
+  canEdit: boolean
   onOpen: (b: Booking) => void
   onTogglePaid: (b: Booking, paid: boolean) => void
 }) {
@@ -317,7 +317,7 @@ function PastTab({
 
       <div className="past-list">
         {paged.visible.map((b) => (
-          <PastRow key={b.id} booking={b} rate={rate} canManage={canManage} onOpen={() => onOpen(b)} onTogglePaid={onTogglePaid} />
+          <PastRow key={b.id} booking={b} rate={rate} canEdit={canEdit} onOpen={() => onOpen(b)} onTogglePaid={onTogglePaid} />
         ))}
       </div>
       {paged.hasMore && <LoadMore shown={paged.shown} total={paged.total} onMore={paged.loadMore} />}
@@ -328,13 +328,13 @@ function PastTab({
 function PastRow({
   booking,
   rate,
-  canManage,
+  canEdit,
   onOpen,
   onTogglePaid,
 }: {
   booking: Booking
   rate: number
-  canManage: boolean
+  canEdit: boolean
   onOpen: () => void
   onTogglePaid: (b: Booking, paid: boolean) => void
 }) {
@@ -363,13 +363,13 @@ function PastRow({
         {paid ? (
           <>
             <span className="badge badge-ok">Оплачено</span>
-            {canManage && (
+            {canEdit && (
               <button className="linkbtn undo-pay" title="Отменить оплату" onClick={() => onTogglePaid(booking, false)}>
                 отменить
               </button>
             )}
           </>
-        ) : canManage ? (
+        ) : canEdit ? (
           <button className="btn btn-sm btn-pay" onClick={() => onTogglePaid(booking, true)}>
             Оплатить · {money(rate)}
           </button>
@@ -462,7 +462,7 @@ function BookingTable({
 
 function BookingDetail({
   booking,
-  canManage,
+  canEdit,
   rate,
   isPast,
   onCancel,
@@ -471,7 +471,7 @@ function BookingDetail({
   onClose,
 }: {
   booking: Booking
-  canManage: boolean
+  canEdit: boolean
   rate: number
   isPast: boolean
   onCancel: (b: Booking) => void
@@ -545,12 +545,12 @@ function BookingDetail({
           )}
         </dl>
         <div className="form-actions">
-          {!cancelled && canManage && (
+          {!cancelled && canEdit && (
             <button className="btn" onClick={() => onToggleMembership(booking, !membership)}>
               {membership ? 'Снять «по абонементу»' : 'Отметить по абонементу'}
             </button>
           )}
-          {showPayout && canManage && (
+          {showPayout && canEdit && (
             <button
               className={paid ? 'btn' : 'btn btn-pay'}
               onClick={() => onTogglePaid(booking, !paid)}
@@ -558,7 +558,7 @@ function BookingDetail({
               {paid ? 'Отменить оплату' : `Оплатить · ${money(rate)}`}
             </button>
           )}
-          {!cancelled && !isPast && canManage && (
+          {!cancelled && !isPast && canEdit && (
             <button className="btn btn-danger" onClick={() => onCancel(booking)}>
               Отменить запись
             </button>
