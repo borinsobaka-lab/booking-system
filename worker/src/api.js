@@ -37,6 +37,12 @@ function json(body, status, env, request) {
   })
 }
 
+/** Кто работает с записями клиентов (создание, отмена, отметки):
+ *  владелец и администратор. */
+function mayManageBookings(session) {
+  return session.role === 'owner' || session.role === 'admin'
+}
+
 async function readSession(request, env, now) {
   const auth = request.headers.get('Authorization') || ''
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : ''
@@ -153,11 +159,11 @@ export async function handle(request, env, deps) {
       return json({ ok: true, booking: created }, 200, env, request)
     }
 
-    // --- Админ создаёт запись вручную (только владелец) ---
+    // --- Запись из админки вручную (владелец и администратор) ---
     if (path === '/api/bookings/create' && method === 'POST') {
       const session = await readSession(request, env, now())
       if (!session) return json({ error: 'Требуется вход' }, 401, env, request)
-      if (session.role !== 'owner') return json({ error: 'Недостаточно прав' }, 403, env, request)
+      if (!mayManageBookings(session)) return json({ error: 'Недостаточно прав' }, 403, env, request)
       const b = await request.json().catch(() => null)
       if (!b) return json({ error: 'bad json' }, 400, env, request)
       const { specialistId, serviceId, date, start } = b
@@ -201,11 +207,11 @@ export async function handle(request, env, deps) {
       return json({ ok: true, booking: created }, 200, env, request)
     }
 
-    // --- Отмена записи (только владелец). Мягкое удаление: status=cancelled. ---
+    // --- Отмена записи (владелец и администратор). Мягкое удаление: status=cancelled. ---
     if (path === '/api/bookings/cancel' && method === 'POST') {
       const session = await readSession(request, env, now())
       if (!session) return json({ error: 'Требуется вход' }, 401, env, request)
-      if (session.role !== 'owner') return json({ error: 'Недостаточно прав' }, 403, env, request)
+      if (!mayManageBookings(session)) return json({ error: 'Недостаточно прав' }, 403, env, request)
       const b = await request.json().catch(() => null)
       if (!b || !b.id) return json({ error: 'bad json' }, 400, env, request)
 
@@ -226,11 +232,11 @@ export async function handle(request, env, deps) {
       return json({ ok: true }, 200, env, request)
     }
 
-    // --- Отметка об оплате сеанса массажисту (только владелец) ---
+    // --- Отметка об оплате сеанса массажисту (владелец и администратор) ---
     if (path === '/api/bookings/pay' && method === 'POST') {
       const session = await readSession(request, env, now())
       if (!session) return json({ error: 'Требуется вход' }, 401, env, request)
-      if (session.role !== 'owner') return json({ error: 'Недостаточно прав' }, 403, env, request)
+      if (!mayManageBookings(session)) return json({ error: 'Недостаточно прав' }, 403, env, request)
       const b = await request.json().catch(() => null)
       if (!b || !b.id) return json({ error: 'bad json' }, 400, env, request)
       const paid = !!b.paid
@@ -248,11 +254,11 @@ export async function handle(request, env, deps) {
       return json({ ok: true }, 200, env, request)
     }
 
-    // --- Отметка «по абонементу» (только владелец) ---
+    // --- Отметка «по абонементу» (владелец и администратор) ---
     if (path === '/api/bookings/membership' && method === 'POST') {
       const session = await readSession(request, env, now())
       if (!session) return json({ error: 'Требуется вход' }, 401, env, request)
-      if (session.role !== 'owner') return json({ error: 'Недостаточно прав' }, 403, env, request)
+      if (!mayManageBookings(session)) return json({ error: 'Недостаточно прав' }, 403, env, request)
       const b = await request.json().catch(() => null)
       if (!b || !b.id) return json({ error: 'bad json' }, 400, env, request)
       const on = !!b.membership
