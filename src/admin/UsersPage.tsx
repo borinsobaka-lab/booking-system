@@ -1,9 +1,15 @@
 import { useState } from 'react'
 import { useDB, deleteUser, updateUser } from '../db'
-import { useAuth, roleLabel } from '../auth'
+import { useAuth, roleLabel, type StaffRole } from '../auth'
 import { Avatar, Field, Modal } from '../ui'
 import { pick, specialistName } from '../localized'
-import type { Role, User } from '../types'
+import type { User } from '../types'
+
+/** Что даёт роль — подсказка рядом с выбором. */
+const ROLE_HINT: Record<StaffRole, string> = {
+  admin: 'Видит всё и редактирует расписание. Остальные разделы — просмотр.',
+  staff: 'Только просмотр: записи и контент видит, менять ничего не может.',
+}
 
 export function UsersPage() {
   const db = useDB()
@@ -11,6 +17,7 @@ export function UsersPage() {
   const [creating, setCreating] = useState(false)
   const [resetting, setResetting] = useState<User | null>(null)
   const [editingEmail, setEditingEmail] = useState<User | null>(null)
+  const [editingRole, setEditingRole] = useState<User | null>(null)
 
   return (
     <div className="page">
@@ -18,11 +25,12 @@ export function UsersPage() {
         <div>
           <h1>Пользователи</h1>
           <p className="muted small">
-            Заводите сотрудников, выдавайте им логины и пароли. Раздел доступен только вам.
+            Заводите администраторов и сотрудников, выдавайте им логины и пароли. Раздел доступен
+            только вам.
           </p>
         </div>
         <button className="btn btn-primary" onClick={() => setCreating(true)}>
-          + Сотрудник
+          + Пользователь
         </button>
       </header>
 
@@ -44,6 +52,11 @@ export function UsersPage() {
                 </div>
               </div>
               <div className="user-row-actions">
+                {u.role !== 'owner' && (
+                  <button className="linkbtn" onClick={() => setEditingRole(u)}>
+                    Роль
+                  </button>
+                )}
                 <button className="linkbtn" onClick={() => setEditingEmail(u)}>
                   Почта
                 </button>
@@ -67,6 +80,7 @@ export function UsersPage() {
       {creating && <UserCreator onClose={() => setCreating(false)} />}
       {resetting && <PasswordResetter user={resetting} onClose={() => setResetting(null)} />}
       {editingEmail && <EmailEditor user={editingEmail} onClose={() => setEditingEmail(null)} />}
+      {editingRole && <RoleEditor user={editingRole} onClose={() => setEditingRole(null)} />}
     </div>
   )
 }
@@ -122,15 +136,16 @@ function UserCreator({ onClose }: { onClose: () => void }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState(genPassword())
   const [specialistId, setSpecialistId] = useState<string>('')
+  const [role, setRole] = useState<StaffRole>('staff')
   const [error, setError] = useState<string | null>(null)
-  const [created, setCreated] = useState<{ username: string; password: string; role: Role } | null>(null)
+  const [created, setCreated] = useState<{ username: string; password: string; role: StaffRole } | null>(null)
   const [busy, setBusy] = useState(false)
 
   const submit = async () => {
     setError(null)
     setBusy(true)
     const res = await createStaff({
-      role: 'staff',
+      role,
       username,
       password,
       name,
@@ -139,7 +154,7 @@ function UserCreator({ onClose }: { onClose: () => void }) {
     })
     setBusy(false)
     if (!res.ok) return setError(res.error ?? 'Не удалось создать пользователя')
-    setCreated({ username: username.trim(), password, role: 'staff' })
+    setCreated({ username: username.trim(), password, role })
   }
 
   if (created) {
@@ -147,7 +162,7 @@ function UserCreator({ onClose }: { onClose: () => void }) {
       <Modal title="Пользователь создан" onClose={onClose}>
         <div className="form">
           <p className="muted">
-            Передайте эти данные сотруднику. Пароль показывается один раз — потом его можно только
+            Передайте эти данные пользователю. Пароль показывается один раз — потом его можно только
             сменить.
           </p>
           <div className="cred-box">
@@ -183,12 +198,9 @@ function UserCreator({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <Modal title="Новый сотрудник" onClose={onClose}>
+    <Modal title="Новый пользователь" onClose={onClose}>
       <div className="form">
-        <p className="muted small">
-          Сотрудник может входить и просматривать записи и контент, но не может ничего менять —
-          управляет всем только суперадминистратор.
-        </p>
+        <RolePicker value={role} onChange={setRole} />
         <Field label="Имя сотрудника">
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Например, Нино" />
         </Field>
@@ -227,6 +239,49 @@ function UserCreator({ onClose }: { onClose: () => void }) {
           </button>
           <button className="btn btn-primary" onClick={submit} disabled={busy}>
             {busy ? 'Создаём…' : 'Создать'}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+/** Выбор роли: администратор (правит расписание) или сотрудник (просмотр). */
+function RolePicker({ value, onChange }: { value: StaffRole; onChange: (r: StaffRole) => void }) {
+  return (
+    <div className="field">
+      <span className="field-label">Роль</span>
+      <div className="segmented">
+        <button className={value === 'admin' ? 'active' : ''} onClick={() => onChange('admin')}>
+          Администратор
+        </button>
+        <button className={value === 'staff' ? 'active' : ''} onClick={() => onChange('staff')}>
+          Сотрудник
+        </button>
+      </div>
+      <p className="muted small">{ROLE_HINT[value]}</p>
+    </div>
+  )
+}
+
+/** Смена роли у существующего пользователя (владельца не трогаем). */
+function RoleEditor({ user, onClose }: { user: User; onClose: () => void }) {
+  const { setRole } = useAuth()
+  const [role, setRoleValue] = useState<StaffRole>(user.role === 'admin' ? 'admin' : 'staff')
+  const save = () => {
+    setRole(user.id, role)
+    onClose()
+  }
+  return (
+    <Modal title={`Роль · ${user.name}`} onClose={onClose}>
+      <div className="form">
+        <RolePicker value={role} onChange={setRoleValue} />
+        <div className="form-actions">
+          <button className="btn" onClick={onClose}>
+            Отмена
+          </button>
+          <button className="btn btn-primary" onClick={save} disabled={role === user.role}>
+            Сохранить
           </button>
         </div>
       </div>

@@ -28,7 +28,7 @@ function mergeRanges(ranges: TimeRange[]): TimeRange[] {
 
 export function SchedulePage() {
   const db = useDB()
-  const { canManage } = useAuth()
+  const { canManageSchedule } = useAuth()
   const [deny, denyModal] = useDeny()
   const [specId, setSpecId] = useState<string>(db.specialists[0]?.id ?? '')
   const [weekStart, setWeekStart] = useState(() => startOfWeek(todayKey()))
@@ -51,7 +51,7 @@ export function SchedulePage() {
     )
   }
 
-  const openDay = (date: string) => (canManage ? setEditDate(date) : deny())
+  const openDay = (date: string) => (canManageSchedule ? setEditDate(date) : deny())
 
   return (
     <div className="page">

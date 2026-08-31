@@ -10,11 +10,50 @@ test.beforeEach(async ({ page }) => {
 })
 
 async function loginAsOwner(page: Page) {
+  await login(page, 'demo', 'demo')
+}
+
+async function login(page: Page, username: string, password: string) {
   await expect(page.getByRole('heading', { name: 'Вход в админку' })).toBeVisible()
-  await page.getByLabel('Логин').fill('demo')
-  await page.getByLabel('Пароль', { exact: true }).fill('demo')
+  await page.getByLabel('Логин').fill(username)
+  await page.getByLabel('Пароль', { exact: true }).fill(password)
   await page.getByRole('button', { name: 'Войти' }).click()
   await expect(page.getByRole('heading', { name: 'Записи' })).toBeVisible()
+}
+
+/** Услуга и специалист в базе — без них раздел «Расписание» пустой. */
+async function seedSpecialist(page: Page) {
+  await page.evaluate(() => {
+    const L = (s: string) => ({ en: s, ka: s, ru: s })
+    const raw = JSON.parse(localStorage.getItem('booking-db-v1') || '{}')
+    raw.services = [{ id: 's1', name: L('Массаж'), description: L(''), durationMin: 60, price: 3000, image: null, createdAt: 1 }]
+    raw.specialists = [
+      { id: 'p1', firstName: L('Нино'), lastName: L('Ц.'), role: L('Массажист'), bio: L(''), avatar: null, serviceIds: ['s1'], createdAt: 1 },
+    ]
+    localStorage.setItem('booking-db-v1', JSON.stringify(raw))
+  })
+  await page.reload()
+}
+
+/** Владелец заводит пользователя с выбранной ролью. */
+async function createUser(page: Page, role: 'Администратор' | 'Сотрудник', login: string, password: string) {
+  await page.getByRole('button', { name: /Пользователи/ }).click()
+  await page.getByRole('button', { name: '+ Пользователь' }).click()
+  await page.getByRole('button', { name: role, exact: true }).click()
+  await page.getByLabel('Имя сотрудника').fill(login)
+  await page.getByLabel('Логин').fill(login)
+  // У поля пароля рядом кнопка «Сгенерировать» — она попадает в подпись метки.
+  await page.getByLabel(/^Пароль/).fill(password)
+  await page.getByRole('button', { name: 'Создать' }).click()
+  await expect(page.getByRole('heading', { name: 'Пользователь создан' })).toBeVisible()
+  await page.getByRole('button', { name: 'Готово' }).click()
+  await expect(page.getByText(`@${login} · ${role}`)).toBeVisible()
+}
+
+async function logout(page: Page) {
+  await page.getByRole('button', { name: 'Выйти' }).click()
+  await expect(page.getByRole('heading', { name: 'Вход в админку' })).toBeVisible()
+  await page.goto('#/admin-panel') // следующий вход — с начала панели, а не с раздела владельца
 }
 
 test('админка: только вход, никакой регистрации', async ({ page }) => {
@@ -68,4 +107,33 @@ test('клиентская витрина: три пути записи и ни�
   await expect(page.getByText('Pick a service', { exact: true })).toBeVisible()
   // Никаких ссылок на админку с витрины
   await expect(page.locator('a[href*="admin"]')).toHaveCount(0)
+})
+
+
+test('администратор редактирует расписание, сотрудник — только смотрит', async ({ page }) => {
+  await loginAsOwner(page)
+  await seedSpecialist(page)
+  await createUser(page, 'Администратор', 'admin1', 'admin1pass')
+  await createUser(page, 'Сотрудник', 'staff1', 'staff1pass')
+  await logout(page)
+
+  // Администратор: расписание открывается на редактирование
+  await login(page, 'admin1', 'admin1pass')
+  await expect(page.getByText('Администратор', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: /Пользователи/ })).toHaveCount(0) // учётки — только владельцу
+  await page.getByRole('button', { name: /Расписание/ }).click()
+  await page.getByRole('button', { name: '＋ время' }).first().click()
+  await expect(page.getByText('Что добавить')).toBeVisible()
+  await page.getByRole('button', { name: 'Добавить' }).click()
+  await expect(page.getByText('10:00–18:00').first()).toBeVisible()
+  await page.getByRole('button', { name: 'Готово' }).click()
+  await expect(page.locator('.tl-work')).toHaveCount(1) // рабочее окно появилось на таймлайне
+  await logout(page)
+
+  // Сотрудник: то же место — предупреждение «Только просмотр»
+  await login(page, 'staff1', 'staff1pass')
+  await page.getByRole('button', { name: /Расписание/ }).click()
+  await page.getByRole('button', { name: '＋ время' }).first().click()
+  await expect(page.getByRole('heading', { name: 'Только просмотр' })).toBeVisible()
+  await expect(page.getByText('Что добавить')).toHaveCount(0)
 })

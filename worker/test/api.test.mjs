@@ -502,3 +502,70 @@ test('PUT /api/data: владелец меняет услуги; не-владе
   await call(store, 'PUT', '/api/data', { token: mtoken, body: { data: mdata } })
   assert.equal(store._peek().users.length, 2) // учётки на месте
 })
+
+test('PUT /api/data: администратор правит расписание, но не услуги/бренд/учётки', async () => {
+  const store = await seededStore()
+  const salt = 'a'
+  const ph = await hashPassword('apw', salt)
+  store._peek().users.push({ id: 'a1', role: 'admin', username: 'admin', salt, passwordHash: ph, name: 'Мари', createdAt: 3 })
+  const token = (await call(store, 'POST', '/api/auth/login', { body: { username: 'admin', password: 'apw' } })).body.token
+
+  const data = (await call(store, 'GET', '/api/data', { token })).body.data
+  // администратор задаёт рабочий день и заодно пробует поменять всё остальное
+  data.schedules.push({ specialistId: 'p1', date: '2026-07-14', windows: [{ start: '11:00', end: '19:00' }], breaks: [] })
+  data.services.push({ id: 's2', name: 'Спорт', description: '', durationMin: 90, price: 4500, image: null, createdAt: 2 })
+  data.specialists = []
+  data.brand = { name: 'Взлом', address: '', avatar: null, banner: null }
+  data.users = []
+  data.reviews = [{ id: 'r9', specialistId: 'p1', authorName: 'X', rating: 1, text: '', date: '2026-07-13', avatar: null, createdAt: 9 }]
+
+  const put = await call(store, 'PUT', '/api/data', { token, body: { data } })
+  assert.equal(put.status, 200)
+  const saved = store._peek()
+  assert.equal(saved.schedules.length, 2)
+  assert.deepEqual(saved.schedules[1], {
+    specialistId: 'p1',
+    date: '2026-07-14',
+    windows: [{ start: '11:00', end: '19:00' }],
+    breaks: [],
+  })
+  assert.equal(saved.services.length, 1) // услуга не добавилась
+  assert.equal(saved.specialists.length, 1) // специалисты на месте
+  assert.equal(saved.brand.name, 'Студия') // бренд не переписан
+  assert.equal(saved.users.length, 2) // учётки не тронуты
+  assert.equal(saved.reviews.length, 0) // отзывы не тронуты
+})
+
+test('PUT /api/data: от администратора принимаются только валидные дни расписания', async () => {
+  const store = await seededStore()
+  const salt = 'a'
+  const ph = await hashPassword('apw', salt)
+  store._peek().users.push({ id: 'a1', role: 'admin', username: 'admin', salt, passwordHash: ph, name: 'Мари', createdAt: 3 })
+  const token = (await call(store, 'POST', '/api/auth/login', { body: { username: 'admin', password: 'apw' } })).body.token
+
+  const data = (await call(store, 'GET', '/api/data', { token })).body.data
+  data.schedules = [
+    // валидный день (лишнее поле отбрасывается)
+    { specialistId: 'p1', date: '2026-07-15', windows: [{ start: '10:00', end: '14:00' }], breaks: [], hack: 'x' },
+    { specialistId: 'нет-такого', date: '2026-07-15', windows: [{ start: '10:00', end: '14:00' }], breaks: [] },
+    { specialistId: 'p1', date: 'когда-нибудь', windows: [{ start: '10:00', end: '14:00' }], breaks: [] },
+    { specialistId: 'p1', date: '2026-07-16', windows: [{ start: '19:00', end: '10:00' }], breaks: [] },
+  ]
+  assert.equal((await call(store, 'PUT', '/api/data', { token, body: { data } })).status, 200)
+  assert.deepEqual(store._peek().schedules, [
+    { specialistId: 'p1', date: '2026-07-15', windows: [{ start: '10:00', end: '14:00' }], breaks: [] },
+  ])
+})
+
+test('PUT /api/data: сотрудник не сохраняет ничего — 403', async () => {
+  const store = await seededStore()
+  const salt = 'm'
+  const ph = await hashPassword('mpw', salt)
+  store._peek().users.push({ id: 'm1', role: 'staff', username: 'nino', salt, passwordHash: ph, name: 'Нино', createdAt: 3 })
+  const token = (await call(store, 'POST', '/api/auth/login', { body: { username: 'nino', password: 'mpw' } })).body.token
+  const data = (await call(store, 'GET', '/api/data', { token })).body.data
+  data.schedules = []
+  const put = await call(store, 'PUT', '/api/data', { token, body: { data } })
+  assert.equal(put.status, 403)
+  assert.equal(store._peek().schedules.length, 1) // расписание на месте
+})

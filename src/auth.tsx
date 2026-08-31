@@ -2,14 +2,15 @@
 //  - локальный (localStorage): учётки и проверка пароля в браузере;
 //  - remote (Cloudflare Worker): вход идёт на сервер, данные приватны.
 // Регистрации НЕТ. Суперадминистратор заводится вручную (worker/seed-owner.mjs),
-// сотрудников (админов/мастеров) создаёт owner внутри панели.
+// администраторов и сотрудников создаёт owner внутри панели.
 
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
 import { addUser, getState, updateUser, useDB, uid } from './db'
 import { hashPassword, randomSalt, verifyPassword } from './crypto'
 import { isRemote } from './config'
 import * as remote from './remote'
-import type { Role, User } from './types'
+import { canEditSchedule, canManageAll, type StaffRole } from './roles'
+import type { User } from './types'
 
 const SESSION_KEY = 'booking-session-user'
 
@@ -19,9 +20,9 @@ interface AuthContextValue {
   ready: boolean
   login: (username: string, password: string) => Promise<{ ok: boolean; error?: string }>
   logout: () => void
-  /** owner создаёт админа/мастера. Возвращает созданного пользователя. */
+  /** owner создаёт администратора или сотрудника. Возвращает созданного пользователя. */
   createStaff: (input: {
-    role: Exclude<Role, 'owner'>
+    role: StaffRole
     username: string
     password: string
     name: string
@@ -30,10 +31,14 @@ interface AuthContextValue {
   }) => Promise<{ ok: boolean; error?: string; user?: User }>
   /** Сменить пароль пользователя. */
   setPassword: (userId: string, password: string) => Promise<void>
+  /** Сменить роль пользователя (owner не переназначается). */
+  setRole: (userId: string, role: StaffRole) => void
   /** Только owner управляет пользователями. */
   canManageUsers: boolean
-  /** Только owner может что-либо менять; сотрудники — просмотр. */
+  /** Только owner может что-либо менять; остальные — просмотр. */
   canManage: boolean
+  /** Расписание правят owner и администратор. */
+  canManageSchedule: boolean
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -119,6 +124,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     updateUser(userId, { salt, passwordHash })
   }, [])
 
+  const setRole = useCallback<AuthContextValue['setRole']>((userId, role) => {
+    // Суперадминистратор один и роль не меняет — иначе панель осталась бы без владельца.
+    if (getState().users.find((u) => u.id === userId)?.role === 'owner') return
+    updateUser(userId, { role })
+  }, [])
+
   const value: AuthContextValue = {
     user,
     ready,
@@ -126,8 +137,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     logout,
     createStaff,
     setPassword,
-    canManageUsers: user?.role === 'owner',
-    canManage: user?.role === 'owner',
+    setRole,
+    canManageUsers: user ? canManageAll(user.role) : false,
+    canManage: user ? canManageAll(user.role) : false,
+    canManageSchedule: user ? canEditSchedule(user.role) : false,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
@@ -139,6 +152,4 @@ export function useAuth(): AuthContextValue {
   return ctx
 }
 
-export function roleLabel(role: Role): string {
-  return role === 'owner' ? 'Суперадминистратор' : 'Сотрудник'
-}
+export { roleLabel, canEditSchedule, type StaffRole } from './roles'
