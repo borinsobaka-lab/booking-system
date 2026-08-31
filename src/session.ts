@@ -4,6 +4,7 @@
 import { isRemote } from './config'
 import { hydrate, setPersister } from './db'
 import * as remote from './remote'
+import { canEditSchedule } from './roles'
 import type { DB } from './types'
 
 let saveTimer: ReturnType<typeof setTimeout> | undefined
@@ -16,14 +17,15 @@ export async function enterClient(): Promise<void> {
   hydrate(remote.publicToDB(pub))
 }
 
-/** Админка: полные данные. Сохранение на сервер — только для владельца;
- *  сотрудники работают в режиме просмотра (persister не ставим). */
+/** Админка: полные данные. Сохранять на сервер могут владелец (всё) и
+ *  администратор (сервер примет от него только расписание); сотрудники
+ *  работают в режиме просмотра (persister не ставим). */
 export async function enterAdmin(): Promise<void> {
   if (!isRemote()) return
   const data = await remote.fetchAdminData()
   hydrate(data)
-  const isOwner = remote.getSession()?.user.role === 'owner'
-  if (!isOwner) {
+  const role = remote.getSession()?.user.role
+  if (!role || !canEditSchedule(role)) {
     setPersister(null)
     return
   }

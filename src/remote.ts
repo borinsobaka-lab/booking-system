@@ -2,14 +2,14 @@
 // в localStorage; персональные данные приходят только авторизованным.
 
 import { apiBase } from './config'
-import type { Booking, DB, Lang } from './types'
+import type { Booking, DB, Lang, Role } from './types'
 
 const SESSION_KEY = 'booking-remote-session'
 
 export interface RemoteUser {
   id: string
   name: string
-  role: 'owner' | 'staff' | 'admin' | 'master'
+  role: Role
   specialistId?: string
 }
 

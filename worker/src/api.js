@@ -46,6 +46,31 @@ async function readSession(request, env, now) {
 const RE_DATE = /^\d{4}-\d{2}-\d{2}$/
 const RE_TIME = /^\d{2}:\d{2}$/
 
+/** Интервалы дня: только корректные 'HH:MM'-пары, лишние поля отбрасываем. */
+function cleanRanges(list) {
+  if (!Array.isArray(list)) return []
+  return list
+    .filter((r) => r && RE_TIME.test(r.start || '') && RE_TIME.test(r.end || '') && r.start < r.end)
+    .map((r) => ({ start: r.start, end: r.end }))
+}
+
+/** Расписание от администратора: только дни существующих специалистов и
+ *  корректные интервалы. Так администратор не может записать в файл ничего,
+ *  кроме расписания. */
+function cleanSchedules(incoming, current) {
+  if (!Array.isArray(incoming)) return current.schedules
+  const known = new Set((current.specialists || []).map((s) => s.id))
+  const out = []
+  for (const s of incoming) {
+    if (!s || !known.has(s.specialistId) || !RE_DATE.test(s.date || '')) continue
+    const windows = cleanRanges(s.windows)
+    const breaks = cleanRanges(s.breaks)
+    if (!windows.length && !breaks.length) continue // пустой день = выходной, не храним
+    out.push({ specialistId: s.specialistId, date: s.date, windows, breaks })
+  }
+  return out
+}
+
 /**
  * @param {Request} request
  * @param {object} env
@@ -493,32 +518,40 @@ export async function handle(request, env, deps) {
       return json({ data: { ...data, users: stripUserSecrets(data.users) } }, 200, env, request)
     }
 
-    // --- Сохранение данных из админки (только владелец; сотрудники — просмотр) ---
+    // --- Сохранение данных из админки. Владелец меняет всё; администратор —
+    // только расписание; сотрудники — просмотр (403). ---
     if (path === '/api/data' && method === 'PUT') {
       const session = await readSession(request, env, now())
       if (!session) return json({ error: 'Требуется вход' }, 401, env, request)
-      if (session.role !== 'owner') return json({ error: 'Недостаточно прав' }, 403, env, request)
+      const isOwner = session.role === 'owner'
+      const isAdmin = session.role === 'admin'
+      if (!isOwner && !isAdmin) return json({ error: 'Недостаточно прав' }, 403, env, request)
       const body = await request.json().catch(() => null)
       const incoming = body && body.data
       if (!incoming) return json({ error: 'bad json' }, 400, env, request)
 
       await store.update((current) => {
         const next = { ...current }
-        next.brand = incoming.brand ?? current.brand
-        next.settings = incoming.settings ?? current.settings
-        next.services = incoming.services ?? current.services
-        next.specialists = incoming.specialists ?? current.specialists
-        next.schedules = incoming.schedules ?? current.schedules
+        // Всё, кроме расписания, правит только владелец.
+        next.brand = isOwner ? incoming.brand ?? current.brand : current.brand
+        next.settings = isOwner ? incoming.settings ?? current.settings : current.settings
+        next.services = isOwner ? incoming.services ?? current.services : current.services
+        next.specialists = isOwner ? incoming.specialists ?? current.specialists : current.specialists
+        // Расписание — и владелец, и администратор. От администратора принимаем
+        // только корректные записи расписания, ничего больше он прислать не может.
+        next.schedules = isOwner
+          ? incoming.schedules ?? current.schedules
+          : cleanSchedules(incoming.schedules, current)
         // Записи меняются ТОЛЬКО через выделенные эндпоинты (/api/bookings*),
         // чтобы отправлять письма и не терять брони при перезаписи из админки.
         next.bookings = current.bookings
-        next.reviews = incoming.reviews ?? current.reviews
+        next.reviews = isOwner ? incoming.reviews ?? current.reviews : current.reviews
         // Приглашения — только через /api/clients/invite (счётчик, письма).
         next.clientInvites = current.clientInvites
 
         // Пользователей меняет только суперадминистратор. Секреты (salt/hash)
         // подтягиваем из текущих данных, если браузер их не прислал.
-        if (session.role === 'owner' && Array.isArray(incoming.users)) {
+        if (isOwner && Array.isArray(incoming.users)) {
           next.users = incoming.users.map((u) => {
             const cur = (current.users || []).find((x) => x.id === u.id)
             return {
@@ -531,7 +564,7 @@ export async function handle(request, env, deps) {
           next.users = current.users // не-владелец не трогает учётки
         }
         return next
-      }, 'admin: save')
+      }, isOwner ? 'admin: save' : 'admin: save schedule')
 
       return json({ ok: true }, 200, env, request)
     }
