@@ -18,6 +18,7 @@ export function UsersPage() {
   const [resetting, setResetting] = useState<User | null>(null)
   const [editingEmail, setEditingEmail] = useState<User | null>(null)
   const [editingRole, setEditingRole] = useState<User | null>(null)
+  const [editingSpec, setEditingSpec] = useState<User | null>(null)
 
   return (
     <div className="page">
@@ -57,6 +58,11 @@ export function UsersPage() {
                     Роль
                   </button>
                 )}
+                {u.role !== 'owner' && (
+                  <button className="linkbtn" onClick={() => setEditingSpec(u)}>
+                    Профиль мастера
+                  </button>
+                )}
                 <button className="linkbtn" onClick={() => setEditingEmail(u)}>
                   Почта
                 </button>
@@ -81,6 +87,7 @@ export function UsersPage() {
       {resetting && <PasswordResetter user={resetting} onClose={() => setResetting(null)} />}
       {editingEmail && <EmailEditor user={editingEmail} onClose={() => setEditingEmail(null)} />}
       {editingRole && <RoleEditor user={editingRole} onClose={() => setEditingRole(null)} />}
+      {editingSpec && <SpecialistLinkEditor user={editingSpec} onClose={() => setEditingSpec(null)} />}
     </div>
   )
 }
@@ -111,6 +118,52 @@ function EmailEditor({ user, onClose }: { user: User; onClose: () => void }) {
             Отмена
           </button>
           <button className="btn btn-primary" onClick={save} disabled={!valid}>
+            Сохранить
+          </button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+/** Привязка учётки к карточке специалиста: делает сотрудника мастером —
+ *  он видит только свои записи, своих клиентов и свои выплаты, и получает
+ *  письма о записях к себе. */
+function SpecialistLinkEditor({ user, onClose }: { user: User; onClose: () => void }) {
+  const db = useDB()
+  const [specialistId, setSpecialistId] = useState(user.specialistId ?? '')
+  const taken = db.users.find((u) => u.id !== user.id && u.specialistId && u.specialistId === specialistId)
+  const save = () => {
+    updateUser(user.id, { specialistId: specialistId || undefined })
+    onClose()
+  }
+  return (
+    <Modal title={`Профиль мастера · ${user.name}`} onClose={onClose}>
+      <div className="form">
+        <Field label="Карточка специалиста">
+          <select value={specialistId} onChange={(e) => setSpecialistId(e.target.value)}>
+            <option value="">— не привязывать —</option>
+            {db.specialists.map((s) => (
+              <option key={s.id} value={s.id}>
+                {specialistName(s, 'ru')} · {pick(s.role, 'ru')}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <p className="muted small">
+          Привязанный мастер видит в админке только свои записи, своих клиентов и свои выплаты, и
+          получает письма о записях к себе. Без привязки сотрудник видит записи всех мастеров.
+        </p>
+        {taken && (
+          <div className="auth-error">
+            Эта карточка уже привязана к пользователю «{taken.name}» — привяжите её только к одному.
+          </div>
+        )}
+        <div className="form-actions">
+          <button className="btn" onClick={onClose}>
+            Отмена
+          </button>
+          <button className="btn btn-primary" onClick={save} disabled={!!taken}>
             Сохранить
           </button>
         </div>

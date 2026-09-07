@@ -9,7 +9,7 @@ import { addUser, getState, updateUser, useDB, uid } from './db'
 import { hashPassword, randomSalt, verifyPassword } from './crypto'
 import { isRemote } from './config'
 import * as remote from './remote'
-import { canEditSchedule, canManageAll, canManageBookings, type StaffRole } from './roles'
+import { canEditSchedule, canManageAll, canManageBookings, canSeeAllBookings, type StaffRole } from './roles'
 import type { User } from './types'
 
 const SESSION_KEY = 'booking-session-user'
@@ -41,6 +41,10 @@ interface AuthContextValue {
   canManageSchedule: boolean
   /** Записи (отмена и отметки) — тоже owner и администратор. */
   canManageBookings: boolean
+  /** Мастер видит только свои записи, клиентов и выплаты: здесь его
+   *  специалист. null ⇒ пользователь видит всех (владелец, администратор или
+   *  сотрудник без привязки к карточке специалиста). */
+  scopedSpecialistId: string | null
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -144,6 +148,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     canManage: user ? canManageAll(user.role) : false,
     canManageSchedule: user ? canEditSchedule(user.role) : false,
     canManageBookings: user ? canManageBookings(user.role) : false,
+    scopedSpecialistId: user && !canSeeAllBookings(user.role) ? user.specialistId ?? null : null,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
@@ -155,4 +160,4 @@ export function useAuth(): AuthContextValue {
   return ctx
 }
 
-export { roleLabel, canEditSchedule, canManageBookings, type StaffRole } from './roles'
+export { roleLabel, canEditSchedule, canManageBookings, canSeeAllBookings, type StaffRole } from './roles'

@@ -144,7 +144,14 @@ function overlaps(a, b) {
   return toMin(a.start) < toMin(b.end) && toMin(b.start) < toMin(a.end)
 }
 
-/** Свободен ли слот у специалиста под услугу в дату/время (та же логика, что на клиенте). */
+/** Сколько массажных кабинетов в студии (общий ресурс всех мастеров). Минимум 1. */
+export function roomCount(data) {
+  const n = data && data.settings ? data.settings.rooms : undefined
+  return Number.isFinite(n) && n >= 1 ? Math.floor(n) : 1
+}
+
+/** Свободен ли слот у специалиста под услугу в дату/время (та же логика, что на клиенте).
+ *  Учитывается и общий кабинет: параллельно идёт не больше сеансов, чем кабинетов. */
 export function isSlotFree(data, specialistId, serviceId, date, start) {
   const svc = data.services.find((s) => s.id === serviceId)
   if (!svc) return false
@@ -156,13 +163,15 @@ export function isSlotFree(data, specialistId, serviceId, date, start) {
   const cand = { start, end }
   const inWindow = sched.windows.some((w) => toMin(w.start) <= toMin(start) && toMin(end) <= toMin(w.end))
   if (!inWindow) return false
+  const dayBookings = (data.bookings || []).filter((b) => b.date === date && b.status !== 'cancelled')
   const busy = [
     ...(sched.breaks || []),
-    ...data.bookings
-      .filter((b) => b.specialistId === specialistId && b.date === date && b.status !== 'cancelled')
-      .map((b) => ({ start: b.start, end: b.end })),
+    ...dayBookings.filter((b) => b.specialistId === specialistId).map((b) => ({ start: b.start, end: b.end })),
   ]
-  return !busy.some((r) => overlaps(cand, r))
+  if (busy.some((r) => overlaps(cand, r))) return false
+  // Общий кабинет: считаем все параллельные сеансы студии, не только свои.
+  const parallel = dayBookings.filter((b) => overlaps(cand, { start: b.start, end: b.end })).length
+  return parallel < roomCount(data)
 }
 
 // --- Минимальный запас до записи (правило онлайн-записи клиентов) ---
@@ -236,6 +245,31 @@ export function toPublic(data) {
   }
 }
 
+/**
+ * Данные для мастера (роль staff/master, привязанная к карточке специалиста).
+ * Свои записи — целиком; чужие — обезличенно (только занятость времени), чтобы
+ * мастер не видел ни контактов чужих клиентов, ни чужих выплат, но админка
+ * по-прежнему правильно считала занятость общего кабинета.
+ */
+export function scopeForSpecialist(data, specialistId) {
+  const bookings = (data.bookings || []).map((b) =>
+    b.specialistId === specialistId
+      ? b
+      : {
+          id: b.id,
+          specialistId: b.specialistId,
+          serviceId: b.serviceId,
+          date: b.date,
+          start: b.start,
+          end: b.end,
+          status: b.status,
+          cancelledAt: b.cancelledAt,
+          createdAt: b.createdAt,
+        },
+  )
+  return { ...data, bookings, clientInvites: [] }
+}
+
 /** Учётки без секретов (salt/passwordHash) — их нельзя отдавать в браузер. */
 export function stripUserSecrets(users) {
   return (users || []).map((u) => ({
@@ -254,7 +288,7 @@ export function emptyData() {
     version: 1,
     users: [],
     brand: { name: 'Массаж-студия', address: '', avatar: null, banner: null },
-    settings: { minLeadMinutes: 0 },
+    settings: { minLeadMinutes: 0, rooms: 1 },
     services: [],
     specialists: [],
     schedules: [],

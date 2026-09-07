@@ -171,3 +171,36 @@ test('sendReviewRequest: без CLIENT_BASE_URL письмо не уходит (
     m.restore()
   }
 })
+
+/** Двое массажистов: у каждого своя учётка с почтой. */
+function twoMastersData() {
+  const d = fullData()
+  d.users.push({ id: 'm2', role: 'staff', email: 'master2@neba.ge', name: 'M2', specialistId: 'p2' })
+  d.specialists.push({ id: 'p2', firstName: { ru: 'Мари' }, lastName: { ru: 'Г.' }, role: { ru: 'Массажист' } })
+  return d
+}
+
+test('двое мастеров: письмо о записи не уходит чужому массажисту', async () => {
+  const m = mockResend()
+  try {
+    await notifyBookingCreated({ RESEND_API_KEY: 're_x' }, twoMastersData(), booking)
+    const all = m.calls.flatMap((c) => c.body.to)
+    assert.ok(all.includes('master@neba.ge'), 'мастеру записи — да')
+    assert.ok(all.includes('owner@neba.ge') && all.includes('admin@neba.ge'), 'владельцу и админам — да')
+    assert.ok(!all.includes('master2@neba.ge'), 'второму массажисту чужие клиенты не видны')
+  } finally {
+    m.restore()
+  }
+})
+
+test('двое мастеров: письмо об отмене тоже не уходит чужому массажисту', async () => {
+  const m = mockResend()
+  try {
+    await notifyBookingCancelled({ RESEND_API_KEY: 're_x' }, twoMastersData(), booking)
+    const all = m.calls.flatMap((c) => c.body.to)
+    assert.ok(all.includes('master@neba.ge'))
+    assert.ok(!all.includes('master2@neba.ge'))
+  } finally {
+    m.restore()
+  }
+})

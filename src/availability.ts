@@ -8,6 +8,25 @@ import type { Booking, DaySchedule, Service, Specialist, TimeRange } from './typ
 /** Шаг сетки слотов (минуты). */
 export const SLOT_STEP = 30
 
+/** Сколько кабинетов в студии (общий ресурс всех мастеров). Минимум 1. */
+export function roomCount(): number {
+  const n = getState().settings?.rooms
+  return Number.isFinite(n) && (n as number) >= 1 ? Math.floor(n as number) : 1
+}
+
+/** Все активные записи дня — по всем мастерам (кабинет делится на всех). */
+function dayBookings(date: string): Booking[] {
+  return getState().bookings.filter((b) => b.date === date && b.status !== 'cancelled')
+}
+
+/** Свободен ли кабинет в это время: сколько сеансов уже идёт параллельно.
+ *  Записи самого специалиста тоже считаются — но их отсекает его же занятость. */
+function roomFree(all: Booking[], candidate: TimeRange, rooms: number): boolean {
+  let busy = 0
+  for (const b of all) if (overlaps(candidate, { start: b.start, end: b.end })) busy++
+  return busy < rooms
+}
+
 export interface Slot {
   start: string
   end: string
@@ -43,6 +62,9 @@ export function freeSlots(specialistId: string, date: string, durationMin: numbe
   if (!sched || sched.windows.length === 0) return []
 
   const busy = busyRanges(sched, specialistId, date)
+  // Кабинет — общий: параллельно идёт не больше сеансов, чем есть кабинетов.
+  const rooms = roomCount()
+  const all = dayBookings(date)
   const slots: Slot[] = []
 
   for (const win of sched.windows) {
@@ -51,10 +73,26 @@ export function freeSlots(specialistId: string, date: string, durationMin: numbe
     for (let t = winStart; t + durationMin <= winEnd; t += SLOT_STEP) {
       const candidate: TimeRange = { start: minToStr(t), end: minToStr(t + durationMin) }
       const clash = busy.some((r) => overlaps(candidate, r))
-      if (!clash) slots.push({ start: candidate.start, end: candidate.end })
+      if (!clash && roomFree(all, candidate, rooms)) slots.push({ start: candidate.start, end: candidate.end })
     }
   }
   return slots
+}
+
+/** Занят ли кабинет чужой записью в это время (свои записи не считаем).
+ *  Нужно админке: показать, почему у свободного мастера время недоступно. */
+export function roomBusyAt(specialistId: string, date: string, range: TimeRange): boolean {
+  const rooms = roomCount()
+  const all = dayBookings(date)
+  let busy = 0
+  for (const b of all) if (overlaps(range, { start: b.start, end: b.end })) busy++
+  const own = all.filter((b) => b.specialistId === specialistId && overlaps(range, { start: b.start, end: b.end })).length
+  return busy - own >= rooms
+}
+
+/** Чужие записи дня (для показа «кабинет занят» в расписании мастера). */
+export function othersBookings(specialistId: string, date: string): Booking[] {
+  return dayBookings(date).filter((b) => b.specialistId !== specialistId)
 }
 
 function minToStr(min: number): string {

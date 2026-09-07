@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useDB, updateBrand, updateSettings } from '../db'
 import { Field, ImagePicker, LangTabs, setLoc } from '../ui'
+import { DEFAULT_PAYOUT } from '../payout'
 import type { Lang } from '../types'
 
 // Пресеты минимального запаса до записи (в минутах). 0 — без ограничения.
@@ -135,6 +136,23 @@ export function SettingsPage() {
           Клиент не сможет записаться, если до начала сеанса осталось меньше этого времени
           (например, чтобы не бронировали визит «через 10 минут»). У администратора ограничения нет.
         </p>
+
+        <Field label="Массажных кабинетов">
+          <input
+            type="number"
+            min={1}
+            max={10}
+            step={1}
+            value={db.settings.rooms ?? 1}
+            onChange={(e) => updateSettings({ rooms: Math.max(1, Math.floor(Number(e.target.value) || 1)) })}
+            onBlur={flash}
+          />
+        </Field>
+        <p className="muted small">
+          Кабинет — общий ресурс мастеров. Если кабинет один, то в одно и то же время идёт только один
+          сеанс: когда клиент записан к одному массажисту, к другому на это же время записаться нельзя —
+          ни с витрины, ни вручную из админки.
+        </p>
       </div>
 
       <header className="page-head">
@@ -147,11 +165,15 @@ export function SettingsPage() {
             type="number"
             min={0}
             step={5}
-            value={db.settings.payoutPerSession ?? 40}
+            value={db.settings.payoutPerSession ?? DEFAULT_PAYOUT}
             onChange={(e) => updateSettings({ payoutPerSession: Math.max(0, Number(e.target.value) || 0) })}
             onBlur={flash}
           />
         </Field>
+        <p className="muted small">
+          Это общая ставка. Если у мастера своя — задайте её в карточке специалиста («Специалисты» →
+          «Изменить»), она перебивает общую.
+        </p>
       </div>
     </div>
   )

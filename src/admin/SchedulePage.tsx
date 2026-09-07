@@ -1,13 +1,16 @@
 import { useState } from 'react'
-import { useDB, setDaySchedule, getDaySchedule } from '../db'
-import { Avatar, Modal } from '../ui'
+import { useDB, setDaySchedule, setDaySchedules, getDaySchedule, getState } from '../db'
+import { Avatar, Field, Modal } from '../ui'
 import { toMinutes, startOfWeek, weekDays, todayKey, addDays, weekdayShort, formatDayMonth } from '../time'
 import { PX_PER_MIN, TIMELINE_HEIGHT, hourMarks, minToY } from './timeline'
+import { othersBookings, roomBusyAt, roomCount } from '../availability'
 import { pick, specialistName } from '../localized'
 import { Icon } from '../icons'
 import { useAuth } from '../auth'
 import { useDeny } from './guard'
 import type { DaySchedule, Lang, TimeRange } from '../types'
+
+const WEEKDAY_LABELS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
 
 const A: Lang = 'ru' // отображение контента в админке
 
@@ -33,6 +36,7 @@ export function SchedulePage() {
   const [specId, setSpecId] = useState<string>(db.specialists[0]?.id ?? '')
   const [weekStart, setWeekStart] = useState(() => startOfWeek(todayKey()))
   const [editDate, setEditDate] = useState<string | null>(null)
+  const [weekEditor, setWeekEditor] = useState(false)
 
   const spec = db.specialists.find((s) => s.id === specId)
   const days = weekDays(weekStart)
@@ -52,6 +56,30 @@ export function SchedulePage() {
   }
 
   const openDay = (date: string) => (canManageSchedule ? setEditDate(date) : deny())
+  const openWeek = () => (canManageSchedule ? setWeekEditor(true) : deny())
+
+  /** Скопировать расписание этого мастера с прошлой недели на показанную. */
+  const copyPrevWeek = () => {
+    if (!canManageSchedule) return deny()
+    if (!spec) return
+    const src = weekDays(addDays(weekStart, -7))
+    const state = getState()
+    const next: DaySchedule[] = days.map((date, i) => {
+      const from = state.schedules.find((s) => s.specialistId === spec.id && s.date === src[i])
+      return {
+        specialistId: spec.id,
+        date,
+        windows: from ? from.windows.map((w) => ({ ...w })) : [],
+        breaks: from ? from.breaks.map((b) => ({ ...b })) : [],
+      }
+    })
+    if (next.every((d) => d.windows.length === 0 && d.breaks.length === 0)) {
+      alert('На прошлой неделе у этого мастера ничего не задано — копировать нечего.')
+      return
+    }
+    if (!confirm(`Скопировать прошлую неделю на показанную для «${specialistName(spec, A)}»? Текущие дни недели будут заменены.`)) return
+    setDaySchedules(next)
+  }
 
   return (
     <div className="page">
@@ -85,9 +113,20 @@ export function SchedulePage() {
         </div>
       </div>
 
+      <div className="sched-bulk">
+        <button className="btn btn-sm btn-primary" onClick={openWeek}>
+          Рабочие дни и время на неделю
+        </button>
+        <button className="btn btn-sm" onClick={copyPrevWeek}>
+          Скопировать прошлую неделю
+        </button>
+      </div>
+
       <p className="muted small hint-line">
-        Нажмите «＋ время» в колонке дня, чтобы задать рабочие часы и перерывы. На таймлайне — только
-        просмотр: рабочее время, перерывы и записи клиентов.
+        Задайте рабочие дни и часы сразу на неделю или поправьте отдельный день кнопкой «＋ время».
+        На таймлайне — только просмотр: рабочее время, перерывы и записи клиентов.
+        {roomCount() === 1 && db.specialists.length > 1 &&
+          ' Серым отмечено время, когда кабинет занят другим мастером — записать в это время нельзя.'}
       </p>
 
       <div className="timeline">
@@ -154,6 +193,21 @@ export function SchedulePage() {
                     </div>
                   ))}
 
+                  {/* кабинет занят другим мастером — сюда записать нельзя */}
+                  {spec &&
+                    othersBookings(spec.id, date)
+                      .filter((bk) => roomBusyAt(spec.id, date, { start: bk.start, end: bk.end }))
+                      .map((bk) => (
+                        <div
+                          key={`o${bk.id}`}
+                          className="tl-block tl-roombusy"
+                          style={{ top: minToY(toMinutes(bk.start)), height: (toMinutes(bk.end) - toMinutes(bk.start)) * PX_PER_MIN }}
+                          title="Кабинет занят другим мастером"
+                        >
+                          <span className="tl-block-label">кабинет занят</span>
+                        </div>
+                      ))}
+
                   {/* записи клиентов (только показ; отменённые не показываем) */}
                   {bookings.map((bk) => (
                     <div
@@ -176,6 +230,9 @@ export function SchedulePage() {
 
       {editDate && spec && (
         <DayEditor specialistId={spec.id} date={editDate} onClose={() => setEditDate(null)} />
+      )}
+      {weekEditor && spec && (
+        <WeekEditor specialistId={spec.id} weekStart={weekStart} onClose={() => setWeekEditor(false)} />
       )}
       {denyModal}
     </div>
@@ -289,6 +346,127 @@ function DayEditor({ specialistId, date, onClose }: { specialistId: string; date
           </button>
           <button className="btn btn-primary" onClick={onClose}>
             Готово
+          </button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+/** Рабочие дни и часы сразу на неделю: отмечаем дни недели и задаём время.
+ *  Отмеченные дни получают одно рабочее окно (и, если нужно, перерыв),
+ *  неотмеченные становятся выходными. Так расписание каждого мастера
+ *  задаётся за один заход. */
+function WeekEditor({
+  specialistId,
+  weekStart,
+  onClose,
+}: {
+  specialistId: string
+  weekStart: string
+  onClose: () => void
+}) {
+  const db = useDB()
+  const days = weekDays(weekStart)
+  // По умолчанию отмечены дни, которые уже рабочие на этой неделе.
+  const [picked, setPicked] = useState<boolean[]>(() =>
+    days.map((date) => {
+      const s = db.schedules.find((x) => x.specialistId === specialistId && x.date === date)
+      return !!s && s.windows.length > 0
+    }),
+  )
+  const [from, setFrom] = useState('10:00')
+  const [to, setTo] = useState('18:00')
+  const [withBreak, setWithBreak] = useState(false)
+  const [breakFrom, setBreakFrom] = useState('13:00')
+  const [breakTo, setBreakTo] = useState('14:00')
+
+  const toggle = (i: number) => setPicked((p) => p.map((v, x) => (x === i ? !v : v)))
+
+  const apply = () => {
+    if (toMinutes(to) - toMinutes(from) < 15) {
+      alert('Конец рабочего дня должен быть позже начала (минимум 15 минут).')
+      return
+    }
+    if (withBreak && toMinutes(breakTo) - toMinutes(breakFrom) < 15) {
+      alert('Конец перерыва должен быть позже начала (минимум 15 минут).')
+      return
+    }
+    if (withBreak && (toMinutes(breakFrom) < toMinutes(from) || toMinutes(breakTo) > toMinutes(to))) {
+      alert('Перерыв должен быть внутри рабочего времени.')
+      return
+    }
+    const offDays = days.filter((_, i) => !picked[i])
+    const busyOff = offDays.filter((date) =>
+      db.bookings.some((b) => b.specialistId === specialistId && b.date === date && b.status !== 'cancelled'),
+    )
+    if (busyOff.length > 0) {
+      const list = busyOff.map((d) => formatDayMonth(d)).join(', ')
+      if (!confirm(`В выходные дни (${list}) уже есть записи клиентов. Записи останутся, но день станет выходным. Продолжить?`)) return
+    }
+    setDaySchedules(
+      days.map((date, i) => ({
+        specialistId,
+        date,
+        windows: picked[i] ? [{ start: from, end: to }] : [],
+        breaks: picked[i] && withBreak ? [{ start: breakFrom, end: breakTo }] : [],
+      })),
+    )
+    onClose()
+  }
+
+  const spec = db.specialists.find((s) => s.id === specialistId)
+  return (
+    <Modal title={`Неделя · ${spec ? specialistName(spec, A) : ''}`} onClose={onClose}>
+      <div className="form">
+        <p className="muted small">
+          Отмеченные дни станут рабочими с указанным временем, остальные — выходными.
+          Неделя {formatDayMonth(days[0])} — {formatDayMonth(days[6])}.
+        </p>
+        <div className="field">
+          <span className="field-label">Рабочие дни</span>
+          <div className="weekday-picker">
+            {days.map((date, i) => (
+              <button
+                key={date}
+                type="button"
+                className={`weekday-pill${picked[i] ? ' active' : ''}`}
+                onClick={() => toggle(i)}
+              >
+                <span>{WEEKDAY_LABELS[i]}</span>
+                <span className="muted small">{formatDayMonth(date)}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="time-row">
+          <Field label="С">
+            <input type="time" step={900} value={from} onChange={(e) => setFrom(e.target.value)} />
+          </Field>
+          <Field label="До">
+            <input type="time" step={900} value={to} onChange={(e) => setTo(e.target.value)} />
+          </Field>
+        </div>
+        <label className="check-item">
+          <input type="checkbox" checked={withBreak} onChange={() => setWithBreak((v) => !v)} />
+          <span>Перерыв каждый рабочий день</span>
+        </label>
+        {withBreak && (
+          <div className="time-row">
+            <Field label="Перерыв с">
+              <input type="time" step={900} value={breakFrom} onChange={(e) => setBreakFrom(e.target.value)} />
+            </Field>
+            <Field label="Перерыв до">
+              <input type="time" step={900} value={breakTo} onChange={(e) => setBreakTo(e.target.value)} />
+            </Field>
+          </div>
+        )}
+        <div className="form-actions">
+          <button className="btn" onClick={onClose}>
+            Отмена
+          </button>
+          <button className="btn btn-primary" onClick={apply}>
+            Применить к неделе
           </button>
         </div>
       </div>

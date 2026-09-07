@@ -47,15 +47,17 @@ interface Client {
 
 export function ClientsPage() {
   const db = useDB()
-  const { canManage } = useAuth()
+  const { canManage, scopedSpecialistId } = useAuth()
   const [deny, denyModal] = useDeny()
   const [sending, setSending] = useState<string | null>(null)
   const [doneEmail, setDoneEmail] = useState<string | null>(null)
 
+  // Мастер видит только своих клиентов; владелец и администратор — всех.
   const clients = useMemo(() => {
     const map = new Map<string, Client>()
     for (const b of db.bookings) {
       if (b.status === 'cancelled') continue
+      if (scopedSpecialistId && b.specialistId !== scopedSpecialistId) continue
       const k = clientKey(b)
       const c = map.get(k) ?? { name: '', phone: '', email: '', lastDate: '', visits: 0 }
       c.visits += 1
@@ -66,7 +68,7 @@ export function ClientsPage() {
       map.set(k, c)
     }
     return [...map.values()].sort((a, b) => (a.lastDate < b.lastDate ? 1 : -1))
-  }, [db.bookings])
+  }, [db.bookings, scopedSpecialistId])
 
   const inviteRec = (email: string) =>
     email ? db.clientInvites.find((x) => x.email === email.trim().toLowerCase()) : undefined
