@@ -2586,6 +2586,47 @@ textarea {
   color: var(--muted);
   margin-top: 4px;
 }
+/* Сколько клиент платит за сеанс — в карточке записи рядом с услугой.
+   Подписано «клиент», чтобы не путать с выплатой мастеру. */
+.card-pay {
+  margin-left: 8px;
+  white-space: nowrap;
+}
+.card-pay::before {
+  content: '·';
+  margin-right: 8px;
+  color: var(--muted);
+}
+.card-pay-label {
+  margin-right: 5px;
+  color: var(--muted);
+}
+.card-price {
+  font-weight: 700;
+  color: var(--text);
+}
+.card-price.muted {
+  color: var(--muted);
+  font-weight: 500;
+}
+/* «Прошедшие»: подпись над кнопкой выплаты массажисту. */
+.pay-label {
+  font-size: 11px;
+  line-height: 1;
+  color: var(--muted);
+}
+/* Сумма за день в шапке ленты «Текущие». */
+.feed-day-cash {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.feed-day-cash b {
+  color: var(--text);
+  font-size: 14px;
+}
+
 /* Мастер в карточке записи: аватар рядом с именем. */
 .detail-spec {
   display: flex;
@@ -3113,6 +3154,21 @@ textarea {
   .user-row-actions {
     width: 100%;
     margin-left: 48px;
+  }
+  /* «Прошедшие»: на узком экране выплата мастеру уходит на отдельную строку,
+     иначе кнопка наезжает на стоимость услуги. */
+  .past-row {
+    flex-wrap: wrap;
+  }
+  .past-row-main {
+    flex: 1 1 100%;
+  }
+  .past-pay {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    width: 100%;
   }
   /* Мастер записи: на узком экране хватает аватара, подпись прячем. */
   .card-spec {

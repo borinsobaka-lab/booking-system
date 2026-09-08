@@ -10,7 +10,7 @@ import { freeSlots } from '../availability'
 import { payoutRate } from '../payout'
 import { pick, specialistName } from '../localized'
 import { Icon } from '../icons'
-import type { Booking, Lang } from '../types'
+import type { Booking, DB, Lang } from '../types'
 
 const A: Lang = 'ru' // отображение контента в админке
 
@@ -52,6 +52,40 @@ function computeVisits(bookings: Booking[]): Map<string, Visit> {
     res.set(b.id, { overall: o, master: m })
   }
   return res
+}
+
+/** Сколько клиент платит за эту запись: стоимость услуги из админки.
+ *  По абонементу клиент на месте не платит — считаем 0. */
+function clientPays(db: DB, b: Booking): number | null {
+  if (b.membership) return 0
+  const svc = db.services.find((s) => s.id === b.serviceId)
+  return svc ? svc.price : null
+}
+
+/** Сумма, которую ждём от клиентов за эти сеансы (абонементы не в счёт). */
+function cashTotal(db: DB, list: Booking[]): number {
+  return list.reduce((sum, b) => sum + (clientPays(db, b) ?? 0), 0)
+}
+
+/** Подпись со стоимостью в карточке записи. Явно помечена «клиент», чтобы не
+ *  путать с выплатой мастеру за сеанс — это разные деньги. */
+function PriceTag({ booking }: { booking: Booking }) {
+  const db = useDB()
+  const pays = clientPays(db, booking)
+  if (pays === null) return null
+  if (booking.membership)
+    return (
+      <span className="card-pay" title="Клиент ходит по абонементу — на месте ничего не платит">
+        <span className="card-pay-label">клиент</span>
+        <span className="card-price muted">не платит</span>
+      </span>
+    )
+  return (
+    <span className="card-pay" title="Столько клиент платит за услугу">
+      <span className="card-pay-label">клиент</span>
+      <span className="card-price">{money(pays)}</span>
+    </span>
+  )
 }
 
 const byStart = (a: Booking, b: Booking) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0)
@@ -235,6 +269,11 @@ export function BookingsPage() {
                   <div className="feed-day-sub">
                     {isToday ? 'Предстоящие' : weekdayLong(date)}
                   </div>
+                  {items.length > 0 && (
+                    <div className="feed-day-cash" title="Сколько клиенты заплатят за эти сеансы">
+                      к оплате <b>{money(cashTotal(db, items))}</b>
+                    </div>
+                  )}
                 </div>
                 {items.length === 0 ? (
                   <div className="feed-empty muted">Нет записей</div>
@@ -391,11 +430,17 @@ function PastRow({
             {booking.clientName || 'Без имени'}
             {booking.membership && <span className="badge badge-sub">по абонементу</span>}
           </div>
-          <div className="muted small">{svc ? pick(svc.name, A) : '—'}</div>
+          <div className="muted small">
+            {svc ? pick(svc.name, A) : '—'}
+            <PriceTag booking={booking} />
+          </div>
         </div>
         <SpecBadge specialistId={booking.specialistId} size={30} />
       </button>
       <div className="past-pay">
+        <span className="pay-label" title="Выплата массажисту за проведённый сеанс">
+          мастеру
+        </span>
         {paid ? (
           <>
             <span className="badge badge-ok">Оплачено</span>
@@ -458,7 +503,10 @@ function FeedCard({ booking, visit, onOpen }: { booking: Booking; visit?: Visit;
           {vl.badge && <span className={`badge ${vl.badgeClass || ''}`}>{vl.badge}</span>}
         </div>
         {vl.text && <div className="feed-card-visit muted">{vl.text}</div>}
-        <div className="feed-card-svc">{svc ? pick(svc.name, A) : 'Услуга'}</div>
+        <div className="feed-card-svc">
+          {svc ? pick(svc.name, A) : 'Услуга'}
+          <PriceTag booking={booking} />
+        </div>
       </div>
       <SpecBadge specialistId={booking.specialistId} />
     </button>
@@ -582,6 +630,16 @@ function BookingDetail({
               <dd>{booking.comment}</dd>
             </>
           )}
+          <dt>К оплате клиентом</dt>
+          <dd>
+            {membership ? (
+              <span className="muted">не платит · по абонементу</span>
+            ) : svc ? (
+              <b>{money(svc.price)}</b>
+            ) : (
+              '—'
+            )}
+          </dd>
           <dt>Статус</dt>
           <dd>
             <span className={`badge ${cancelled ? '' : 'badge-ok'}`}>{cancelled ? 'отменена' : 'подтверждена'}</span>
@@ -589,7 +647,7 @@ function BookingDetail({
           </dd>
           {showPayout && (
             <>
-              <dt>Оплата массажисту</dt>
+              <dt>Выплата мастеру</dt>
               <dd>
                 {paid ? (
                   <span className="badge badge-ok">оплачено · {money(rate)}</span>

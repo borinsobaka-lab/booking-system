@@ -301,3 +301,28 @@ test('записи: аватар мастера на карточке и фил�
   await page.getByRole('button', { name: 'Текущие' }).click()
   await expect(page.getByText('Клиент Нино')).toHaveCount(0)
 })
+
+test('записи: видно, сколько клиент платит за услугу', async ({ page }) => {
+  await loginAsOwner(page)
+  await seedTwoSpecialists(page)
+
+  // Текущие: стоимость услуги на карточке + сумма за день в шапке
+  await expect(page.locator('.card-pay').first()).toContainText('клиент')
+  await expect(page.locator('.card-price').first()).toHaveText('3 000 ₾')
+  await expect(page.locator('.feed-day-cash')).toContainText('3 000 ₾')
+
+  // Прошедшие: рядом со стоимостью клиента — подписанная выплата мастеру
+  await page.getByRole('button', { name: 'Прошедшие' }).click()
+  await expect(page.locator('.card-price').first()).toHaveText('3 000 ₾')
+  await expect(page.locator('.pay-label').first()).toHaveText('мастеру')
+
+  // По абонементу клиент на месте не платит — суммы нет
+  await page.evaluate(() => {
+    const raw = JSON.parse(localStorage.getItem('booking-db-v1') || '{}')
+    for (const b of raw.bookings) b.membership = true
+    localStorage.setItem('booking-db-v1', JSON.stringify(raw))
+  })
+  await page.reload()
+  await page.getByRole('button', { name: 'Прошедшие' }).click()
+  await expect(page.locator('.card-price').first()).toHaveText('не платит')
+})
