@@ -377,7 +377,6 @@ function PastRow({
 }) {
   const db = useDB()
   const svc = db.services.find((s) => s.id === booking.serviceId)
-  const sp = db.specialists.find((s) => s.id === booking.specialistId)
   const rate = payoutRate(db, booking.specialistId)
   const paid = !!booking.paidAt
   return (
@@ -392,10 +391,9 @@ function PastRow({
             {booking.clientName || 'Без имени'}
             {booking.membership && <span className="badge badge-sub">по абонементу</span>}
           </div>
-          <div className="muted small">
-            {svc ? pick(svc.name, A) : '—'} · {sp ? specialistName(sp, A) : '—'}
-          </div>
+          <div className="muted small">{svc ? pick(svc.name, A) : '—'}</div>
         </div>
+        <SpecBadge specialistId={booking.specialistId} size={30} />
       </button>
       <div className="past-pay">
         {paid ? (
@@ -419,6 +417,22 @@ function PastRow({
   )
 }
 
+/** Аватар мастера в правой части карточки — сразу видно, к кому запись.
+ *  Под аватаром имя (без фамилии, чтобы не обрезалось), полное — в подсказке. */
+function SpecBadge({ specialistId, size = 34 }: { specialistId: string; size?: number }) {
+  const db = useDB()
+  const sp = db.specialists.find((s) => s.id === specialistId)
+  if (!sp) return null
+  const full = specialistName(sp, A)
+  const short = pick(sp.firstName, A) || full
+  return (
+    <div className="card-spec" title={full}>
+      <Avatar src={sp.avatar} name={full} size={size} />
+      <span className="card-spec-name">{short}</span>
+    </div>
+  )
+}
+
 function visitLabel(v?: Visit): { text: string; badge?: string; badgeClass?: string } {
   if (!v) return { text: '' }
   const text = `${v.overall}-й визит`
@@ -430,7 +444,6 @@ function visitLabel(v?: Visit): { text: string; badge?: string; badgeClass?: str
 function FeedCard({ booking, visit, onOpen }: { booking: Booking; visit?: Visit; onOpen: () => void }) {
   const db = useDB()
   const svc = db.services.find((s) => s.id === booking.serviceId)
-  const sp = db.specialists.find((s) => s.id === booking.specialistId)
   const vl = visitLabel(visit)
   return (
     <button className="feed-card" onClick={onOpen}>
@@ -445,10 +458,9 @@ function FeedCard({ booking, visit, onOpen }: { booking: Booking; visit?: Visit;
           {vl.badge && <span className={`badge ${vl.badgeClass || ''}`}>{vl.badge}</span>}
         </div>
         {vl.text && <div className="feed-card-visit muted">{vl.text}</div>}
-        <div className="feed-card-svc">
-          {svc ? pick(svc.name, A) : 'Услуга'} · {sp ? specialistName(sp, A) : '—'}
-        </div>
+        <div className="feed-card-svc">{svc ? pick(svc.name, A) : 'Услуга'}</div>
       </div>
+      <SpecBadge specialistId={booking.specialistId} />
     </button>
   )
 }
@@ -469,7 +481,6 @@ function BookingTable({
     <div className="book-history">
       {paged.visible.map((b) => {
         const svc = db.services.find((s) => s.id === b.serviceId)
-        const sp = db.specialists.find((s) => s.id === b.specialistId)
         return (
           <button className="book-history-row" key={b.id} onClick={() => onOpen(b)}>
             <div className="bh-date">
@@ -483,10 +494,9 @@ function BookingTable({
                 {b.clientName || 'Без имени'}
                 {b.membership && <span className="badge badge-sub">по абонементу</span>}
               </div>
-              <div className="muted small">
-                {svc ? pick(svc.name, A) : '—'} · {sp ? specialistName(sp, A) : '—'}
-              </div>
+              <div className="muted small">{svc ? pick(svc.name, A) : '—'}</div>
             </div>
+            <SpecBadge specialistId={b.specialistId} size={30} />
             <span className={`badge ${b.status === 'cancelled' ? '' : 'badge-ok'}`}>
               {b.status === 'cancelled' ? 'отменена' : 'активна'}
             </span>
@@ -538,7 +548,16 @@ function BookingDetail({
             {svc ? pick(svc.name, A) : '—'} {svc && <span className="muted">· {money(svc.price)} · {duration(svc.durationMin)}</span>}
           </dd>
           <dt>Специалист</dt>
-          <dd>{sp ? specialistName(sp, A) : '—'}</dd>
+          <dd className="detail-spec">
+            {sp ? (
+              <>
+                <Avatar src={sp.avatar} name={specialistName(sp, A)} size={26} />
+                {specialistName(sp, A)}
+              </>
+            ) : (
+              '—'
+            )}
+          </dd>
           <dt>Клиент</dt>
           <dd>{booking.clientName || 'без имени'}</dd>
           {booking.clientPhone && (

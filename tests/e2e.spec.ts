@@ -276,3 +276,28 @@ test('массажист видит только свои записи и сво
   // фильтра по мастерам у него нет — он видит только себя
   await expect(page.getByRole('button', { name: 'Все мастера' })).toHaveCount(0)
 })
+
+test('записи: аватар мастера на карточке и фильтр по мастерам на всех вкладках', async ({ page }) => {
+  await loginAsOwner(page)
+  await seedTwoSpecialists(page)
+
+  // На карточке записи виден мастер — аватар с именем
+  await expect(page.locator('.card-spec').first()).toBeVisible()
+  await expect(page.locator('.card-spec-name', { hasText: 'Нино' }).first()).toBeVisible()
+
+  // Прошедшие: фильтр на месте, по умолчанию видны оба мастера
+  await page.getByRole('button', { name: 'Прошедшие' }).click()
+  await expect(page.getByRole('button', { name: 'Все мастера' })).toBeVisible()
+  await expect(page.getByText('Прошлый Нино')).toBeVisible()
+  await expect(page.getByText('Прошлый Мари')).toBeVisible()
+
+  // Переключаемся на Мари — остаются только её сеансы и её сумма
+  await page.getByRole('button', { name: /Мари Г\./ }).click()
+  await expect(page.getByText('Прошлый Мари')).toBeVisible()
+  await expect(page.getByText('Прошлый Нино')).toHaveCount(0)
+  await expect(page.getByText('Прошло 1 сеанс.')).toBeVisible()
+
+  // Фильтр сохраняется при переходе на «Текущие»
+  await page.getByRole('button', { name: 'Текущие' }).click()
+  await expect(page.getByText('Клиент Нино')).toHaveCount(0)
+})

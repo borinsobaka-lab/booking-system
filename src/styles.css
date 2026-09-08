@@ -2586,6 +2586,33 @@ textarea {
   color: var(--muted);
   margin-top: 4px;
 }
+/* Мастер в карточке записи: аватар рядом с именем. */
+.detail-spec {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Мастер записи: аватар в правой части карточки — сразу видно, к кому запись. */
+.card-spec {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  width: 76px;
+  text-align: center;
+}
+.card-spec-name {
+  max-width: 76px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  line-height: 1.2;
+  color: var(--muted);
+}
+
 .book-history {
   display: flex;
   flex-direction: column;
@@ -2721,8 +2748,10 @@ textarea {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
+  justify-content: center;
   gap: 2px;
   flex: none;
+  min-width: 136px;
 }
 .btn-pay {
   background: var(--accent);
@@ -3084,6 +3113,16 @@ textarea {
   .user-row-actions {
     width: 100%;
     margin-left: 48px;
+  }
+  /* Мастер записи: на узком экране хватает аватара, подпись прячем. */
+  .card-spec {
+    width: auto;
+  }
+  .card-spec-name {
+    display: none;
+  }
+  .past-pay {
+    min-width: 0;
   }
   /* Чуть уже колонки дней — на экран влезает больше дней расписания. */
   .tl-day {
