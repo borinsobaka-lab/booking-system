@@ -307,12 +307,14 @@ test('записи: видно, сколько клиент платит за у
   await seedTwoSpecialists(page)
 
   // Текущие: стоимость услуги на карточке + сумма за день в шапке
+  await expect(page.locator('.card-pay').first()).toContainText('клиент')
   await expect(page.locator('.card-price').first()).toHaveText('3 000 ₾')
   await expect(page.locator('.feed-day-cash')).toContainText('3 000 ₾')
 
-  // Прошедшие: стоимость видна и там
+  // Прошедшие: рядом со стоимостью клиента — подписанная выплата мастеру
   await page.getByRole('button', { name: 'Прошедшие' }).click()
   await expect(page.locator('.card-price').first()).toHaveText('3 000 ₾')
+  await expect(page.locator('.pay-label').first()).toHaveText('мастеру')
 
   // По абонементу клиент на месте не платит — суммы нет
   await page.evaluate(() => {
@@ -322,5 +324,5 @@ test('записи: видно, сколько клиент платит за у
   })
   await page.reload()
   await page.getByRole('button', { name: 'Прошедшие' }).click()
-  await expect(page.locator('.card-price').first()).toHaveText('без оплаты')
+  await expect(page.locator('.card-price').first()).toHaveText('не платит')
 })
