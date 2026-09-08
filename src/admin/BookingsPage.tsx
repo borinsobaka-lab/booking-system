@@ -10,7 +10,7 @@ import { freeSlots } from '../availability'
 import { payoutRate } from '../payout'
 import { pick, specialistName } from '../localized'
 import { Icon } from '../icons'
-import type { Booking, Lang } from '../types'
+import type { Booking, DB, Lang } from '../types'
 
 const A: Lang = 'ru' // отображение контента в админке
 
@@ -52,6 +52,37 @@ function computeVisits(bookings: Booking[]): Map<string, Visit> {
     res.set(b.id, { overall: o, master: m })
   }
   return res
+}
+
+/** Сколько клиент платит за эту запись: стоимость услуги из админки.
+ *  По абонементу клиент на месте не платит — считаем 0. */
+function clientPays(db: DB, b: Booking): number | null {
+  if (b.membership) return 0
+  const svc = db.services.find((s) => s.id === b.serviceId)
+  return svc ? svc.price : null
+}
+
+/** Сумма, которую ждём от клиентов за эти сеансы (абонементы не в счёт). */
+function cashTotal(db: DB, list: Booking[]): number {
+  return list.reduce((sum, b) => sum + (clientPays(db, b) ?? 0), 0)
+}
+
+/** Подпись со стоимостью в карточке записи. */
+function PriceTag({ booking }: { booking: Booking }) {
+  const db = useDB()
+  const pays = clientPays(db, booking)
+  if (pays === null) return null
+  if (booking.membership)
+    return (
+      <span className="card-price muted" title="Клиент платит по абонементу — на месте ничего не платит">
+        без оплаты
+      </span>
+    )
+  return (
+    <span className="card-price" title="Столько клиент платит за услугу">
+      {money(pays)}
+    </span>
+  )
 }
 
 const byStart = (a: Booking, b: Booking) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0)
@@ -235,6 +266,11 @@ export function BookingsPage() {
                   <div className="feed-day-sub">
                     {isToday ? 'Предстоящие' : weekdayLong(date)}
                   </div>
+                  {items.length > 0 && (
+                    <div className="feed-day-cash" title="Сколько клиенты заплатят за эти сеансы">
+                      к оплате <b>{money(cashTotal(db, items))}</b>
+                    </div>
+                  )}
                 </div>
                 {items.length === 0 ? (
                   <div className="feed-empty muted">Нет записей</div>
@@ -391,7 +427,10 @@ function PastRow({
             {booking.clientName || 'Без имени'}
             {booking.membership && <span className="badge badge-sub">по абонементу</span>}
           </div>
-          <div className="muted small">{svc ? pick(svc.name, A) : '—'}</div>
+          <div className="muted small">
+            {svc ? pick(svc.name, A) : '—'}
+            <PriceTag booking={booking} />
+          </div>
         </div>
         <SpecBadge specialistId={booking.specialistId} size={30} />
       </button>
@@ -458,7 +497,10 @@ function FeedCard({ booking, visit, onOpen }: { booking: Booking; visit?: Visit;
           {vl.badge && <span className={`badge ${vl.badgeClass || ''}`}>{vl.badge}</span>}
         </div>
         {vl.text && <div className="feed-card-visit muted">{vl.text}</div>}
-        <div className="feed-card-svc">{svc ? pick(svc.name, A) : 'Услуга'}</div>
+        <div className="feed-card-svc">
+          {svc ? pick(svc.name, A) : 'Услуга'}
+          <PriceTag booking={booking} />
+        </div>
       </div>
       <SpecBadge specialistId={booking.specialistId} />
     </button>

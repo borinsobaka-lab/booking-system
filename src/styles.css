@@ -2586,6 +2586,35 @@ textarea {
   color: var(--muted);
   margin-top: 4px;
 }
+/* Сколько клиент платит за сеанс — в карточке записи рядом с услугой. */
+.card-price {
+  margin-left: 8px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+}
+.card-price::before {
+  content: '·';
+  margin-right: 8px;
+  color: var(--muted);
+  font-weight: 400;
+}
+.card-price.muted {
+  color: var(--muted);
+  font-weight: 500;
+}
+/* Сумма за день в шапке ленты «Текущие». */
+.feed-day-cash {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.feed-day-cash b {
+  color: var(--text);
+  font-size: 14px;
+}
+
 /* Мастер в карточке записи: аватар рядом с именем. */
 .detail-spec {
   display: flex;
