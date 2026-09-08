@@ -1027,6 +1027,41 @@ textarea {
 .hint-line {
   margin: 4px 0 14px;
 }
+/* Расписание: действия на всю неделю сразу. */
+.sched-bulk {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+/* Выбор рабочих дней недели в модалке «Неделя». */
+.weekday-picker {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.weekday-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 62px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 7px 8px;
+  font-size: 14px;
+}
+.weekday-pill.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  font-weight: 600;
+}
+/* Фильтр записей по мастеру (владелец и администратор). */
+.book-specfilter {
+  margin: 0 0 14px;
+}
 
 .timeline {
   display: flex;
@@ -1222,6 +1257,11 @@ textarea {
   text-align: left;
   display: block;
   border-width: 1px;
+}
+/* Кабинет занят другим мастером — записать в это время нельзя. */
+.tl-roombusy {
+  background: repeating-linear-gradient(45deg, #9a9a9a, #9a9a9a 6px, #8a8a8a 6px, #8a8a8a 12px);
+  opacity: 0.75;
 }
 .tl-draft {
   opacity: 0.6;
@@ -2546,6 +2586,33 @@ textarea {
   color: var(--muted);
   margin-top: 4px;
 }
+/* Мастер в карточке записи: аватар рядом с именем. */
+.detail-spec {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Мастер записи: аватар в правой части карточки — сразу видно, к кому запись. */
+.card-spec {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  width: 76px;
+  text-align: center;
+}
+.card-spec-name {
+  max-width: 76px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  line-height: 1.2;
+  color: var(--muted);
+}
+
 .book-history {
   display: flex;
   flex-direction: column;
@@ -2681,8 +2748,10 @@ textarea {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
+  justify-content: center;
   gap: 2px;
   flex: none;
+  min-width: 136px;
 }
 .btn-pay {
   background: var(--accent);
@@ -3044,6 +3113,16 @@ textarea {
   .user-row-actions {
     width: 100%;
     margin-left: 48px;
+  }
+  /* Мастер записи: на узком экране хватает аватара, подпись прячем. */
+  .card-spec {
+    width: auto;
+  }
+  .card-spec-name {
+    display: none;
+  }
+  .past-pay {
+    min-width: 0;
   }
   /* Чуть уже колонки дней — на экран влезает больше дней расписания. */
   .tl-day {

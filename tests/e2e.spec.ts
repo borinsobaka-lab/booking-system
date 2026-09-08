@@ -82,16 +82,16 @@ test('заведение услуги и специалиста', async ({ page 
   await loginAsOwner(page)
 
   await page.getByRole('button', { name: /Услуги/ }).click()
-  await page.getByRole('button', { name: '+ Добавить услугу' }).click()
+  await page.getByRole('button', { name: '+ Услуга' }).click()
   await page.getByLabel('Название').fill('Классический массаж')
   await page.getByLabel('Длительность, мин').fill('60')
-  await page.getByLabel('Стоимость, ₽').fill('3000')
+  await page.getByLabel('Стоимость, ₾').fill('3000')
   await page.getByRole('button', { name: 'Сохранить' }).click()
   await expect(page.getByText('Классический массаж')).toBeVisible()
 
   await page.getByRole('button', { name: /Специалисты/ }).click()
-  await page.getByRole('button', { name: '+ Добавить специалиста' }).click()
-  await page.getByLabel('Имя').fill('Нино')
+  await page.getByRole('button', { name: '+ Специалист' }).click()
+  await page.getByLabel('Имя', { exact: true }).fill('Нино')
   await page.getByLabel('Фамилия').fill('Ц.')
   await page.getByText('Классический массаж').click()
   await page.getByRole('button', { name: 'Сохранить' }).click()
@@ -170,4 +170,134 @@ test('администратор правит расписание и запис
   await page.getByRole('button', { name: 'Закрыть', exact: true }).last().click()
   await page.getByRole('button', { name: '+ Запись' }).click()
   await expect(page.getByRole('heading', { name: 'Только просмотр' })).toBeVisible()
+})
+
+// --- Двое массажистов ---
+
+/** Двое мастеров, общий кабинет (rooms=1), расписание на завтра и вчера,
+ *  по одной прошедшей записи у каждого. */
+async function seedTwoSpecialists(page: Page) {
+  await page.evaluate(() => {
+    const L = (s: string) => ({ en: s, ka: s, ru: s })
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const key = (shift: number) => {
+      const d = new Date(Date.now() + shift * 86_400_000)
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+    }
+    const tomorrow = key(1)
+    const yesterday = key(-1)
+    const raw = JSON.parse(localStorage.getItem('booking-db-v1') || '{}')
+    raw.settings = { ...(raw.settings || {}), minLeadMinutes: 0, rooms: 1 }
+    raw.services = [{ id: 's1', name: L('Массаж'), description: L(''), durationMin: 60, price: 3000, image: null, createdAt: 1 }]
+    raw.specialists = [
+      { id: 'p1', firstName: L('Нино'), lastName: L('Ц.'), role: L('Массажист'), bio: L(''), avatar: null, serviceIds: ['s1'], createdAt: 1 },
+      { id: 'p2', firstName: L('Мари'), lastName: L('Г.'), role: L('Массажист'), bio: L(''), avatar: null, serviceIds: ['s1'], createdAt: 2 },
+    ]
+    const day = (specialistId: string, date: string) => ({
+      specialistId, date, windows: [{ start: '09:00', end: '18:00' }], breaks: [],
+    })
+    raw.schedules = [day('p1', tomorrow), day('p2', tomorrow), day('p1', yesterday), day('p2', yesterday)]
+    const bk = (id: string, specialistId: string, date: string, start: string, end: string, clientName: string) => ({
+      id, specialistId, serviceId: 's1', date, start, end, status: 'confirmed', clientName, clientPhone: '+995 555', createdAt: 1,
+    })
+    raw.bookings = [
+      bk('b1', 'p1', tomorrow, '10:00', '11:00', 'Клиент Нино'),
+      bk('b2', 'p1', yesterday, '10:00', '11:00', 'Прошлый Нино'),
+      bk('b3', 'p2', yesterday, '12:00', '13:00', 'Прошлый Мари'),
+    ]
+    localStorage.setItem('booking-db-v1', JSON.stringify(raw))
+  })
+  await page.reload()
+}
+
+function dateKey(shift: number): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const d = new Date(Date.now() + shift * 86_400_000)
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+test('общий кабинет: занятое время второму мастеру недоступно', async ({ page }) => {
+  await loginAsOwner(page)
+  await seedTwoSpecialists(page)
+
+  await page.getByRole('button', { name: '+ Запись' }).click()
+  await page.getByLabel('Дата').fill(dateKey(1))
+  await page.getByLabel('Специалист').selectOption({ label: 'Мари Г.' })
+  await page.getByLabel('Услуга').selectOption({ index: 1 })
+  // 10:00 занято у Нино — кабинет один, значит и Мари в это время занять нельзя
+  await expect(page.getByRole('button', { name: '11:00', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '10:00', exact: true })).toHaveCount(0)
+  // а у самой Мари 09:00 свободно — сеанс заканчивается ровно к началу чужого
+  await expect(page.getByRole('button', { name: '09:00', exact: true })).toBeVisible()
+})
+
+test('расписание: рабочие дни и время задаются на неделю сразу', async ({ page }) => {
+  await loginAsOwner(page)
+  await seedTwoSpecialists(page)
+
+  // предупреждение «в выходной день есть записи» подтверждаем
+  page.on('dialog', (d) => d.accept())
+
+  await page.getByRole('button', { name: /Расписание/ }).click()
+  await page.getByRole('button', { name: 'Рабочие дни и время на неделю' }).click()
+  await expect(page.getByText('Рабочие дни', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: /^Пн/ }).click()
+  await page.getByRole('button', { name: /^Вт/ }).click()
+  const picked = await page.locator('.weekday-pill.active').count()
+  await page.getByRole('button', { name: 'Применить к неделе' }).click()
+  // на таймлайне ровно столько рабочих дней, сколько отмечено
+  await expect(page.locator('.tl-work')).toHaveCount(picked)
+})
+
+test('массажист видит только свои записи и свою зарплату', async ({ page }) => {
+  await loginAsOwner(page)
+  await seedTwoSpecialists(page)
+  await createUser(page, 'Сотрудник', 'mari', 'maripass')
+  // привязываем учётку к карточке специалиста
+  await page.getByRole('button', { name: 'Профиль мастера' }).last().click()
+  await page.getByLabel('Карточка специалиста').selectOption({ index: 2 }) // Мари Г.
+  await page.getByRole('button', { name: 'Сохранить' }).click()
+
+  // владелец видит обоих мастеров и обе суммы
+  await page.getByRole('button', { name: /Записи/ }).click()
+  await page.getByRole('button', { name: 'Прошедшие' }).click()
+  await expect(page.getByText('Прошлый Нино')).toBeVisible()
+  await expect(page.getByText('Прошлый Мари')).toBeVisible()
+  await expect(page.getByText('80 ₾').first()).toBeVisible() // два сеанса по 40 ₾
+  await logout(page)
+
+  // мастер — только свои записи и своя сумма
+  await login(page, 'mari', 'maripass')
+  await page.getByRole('button', { name: 'Прошедшие' }).click()
+  await expect(page.getByText('Прошлый Мари')).toBeVisible()
+  await expect(page.getByText('Прошлый Нино')).toHaveCount(0)
+  await expect(page.getByText('40 ₾').first()).toBeVisible()
+  await expect(page.getByText('осталось получить за проведённые сеансы')).toBeVisible()
+  // фильтра по мастерам у него нет — он видит только себя
+  await expect(page.getByRole('button', { name: 'Все мастера' })).toHaveCount(0)
+})
+
+test('записи: аватар мастера на карточке и фильтр по мастерам на всех вкладках', async ({ page }) => {
+  await loginAsOwner(page)
+  await seedTwoSpecialists(page)
+
+  // На карточке записи виден мастер — аватар с именем
+  await expect(page.locator('.card-spec').first()).toBeVisible()
+  await expect(page.locator('.card-spec-name', { hasText: 'Нино' }).first()).toBeVisible()
+
+  // Прошедшие: фильтр на месте, по умолчанию видны оба мастера
+  await page.getByRole('button', { name: 'Прошедшие' }).click()
+  await expect(page.getByRole('button', { name: 'Все мастера' })).toBeVisible()
+  await expect(page.getByText('Прошлый Нино')).toBeVisible()
+  await expect(page.getByText('Прошлый Мари')).toBeVisible()
+
+  // Переключаемся на Мари — остаются только её сеансы и её сумма
+  await page.getByRole('button', { name: /Мари Г\./ }).click()
+  await expect(page.getByText('Прошлый Мари')).toBeVisible()
+  await expect(page.getByText('Прошлый Нино')).toHaveCount(0)
+  await expect(page.getByText('Прошло 1 сеанс.')).toBeVisible()
+
+  // Фильтр сохраняется при переходе на «Текущие»
+  await page.getByRole('button', { name: 'Текущие' }).click()
+  await expect(page.getByText('Клиент Нино')).toHaveCount(0)
 })

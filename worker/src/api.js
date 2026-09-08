@@ -3,6 +3,7 @@
 
 import {
   toPublic,
+  scopeForSpecialist,
   stripUserSecrets,
   isSlotFree,
   leadOk,
@@ -520,8 +521,13 @@ export async function handle(request, env, deps) {
       const session = await readSession(request, env, now())
       if (!session) return json({ error: 'Требуется вход' }, 401, env, request)
       const { data } = await store.get()
+      // Мастер (сотрудник, привязанный к карточке специалиста) видит только свои
+      // записи и выплаты; чужие приходят обезличенно — только занятость времени.
+      const me = (data.users || []).find((u) => u.id === session.userId)
+      const scoped =
+        !mayManageBookings(session) && me && me.specialistId ? scopeForSpecialist(data, me.specialistId) : data
       // Учётки — без секретов.
-      return json({ data: { ...data, users: stripUserSecrets(data.users) } }, 200, env, request)
+      return json({ data: { ...scoped, users: stripUserSecrets(scoped.users) } }, 200, env, request)
     }
 
     // --- Сохранение данных из админки. Владелец меняет всё; администратор —

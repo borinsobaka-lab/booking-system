@@ -624,3 +624,112 @@ test('сотрудник не заводит, не отменяет и не от
   assert.equal(store._peek().bookings[0].status, 'confirmed')
   assert.equal(store._peek().bookings[0].paidAt, undefined)
 })
+
+// --- Двое массажистов: общий кабинет и разграничение данных ---
+
+/** Хранилище с двумя мастерами, работающими в один день. */
+async function twoMastersStore(rooms = 1) {
+  const store = await seededStore()
+  const data = store._peek()
+  data.settings = { ...(data.settings || {}), minLeadMinutes: 0, rooms }
+  data.specialists.push({ id: 'p2', firstName: 'Мари', lastName: 'Г.', role: 'Массажист', avatar: null, serviceIds: ['s1'], createdAt: 2 })
+  data.schedules.push({ specialistId: 'p2', date: '2026-07-13', windows: [{ start: '09:00', end: '18:00' }], breaks: [] })
+  return store
+}
+
+const clientBooking = (specialistId, start, name) => ({
+  specialistId,
+  serviceId: 's1',
+  date: '2026-07-13',
+  start,
+  clientName: name,
+  clientPhone: '+995 555',
+  consent: true,
+})
+
+test('общий кабинет: занято у одного мастера — к другому на это же время нельзя', async () => {
+  const store = await twoMastersStore(1)
+  const first = await call(store, 'POST', '/api/bookings', { body: clientBooking('p1', '10:00', 'Клиент А') })
+  assert.equal(first.status, 200)
+
+  // тот же час у второго мастера — кабинет занят
+  const clash = await call(store, 'POST', '/api/bookings', { body: clientBooking('p2', '10:00', 'Клиент Б') })
+  assert.equal(clash.status, 409)
+  assert.match(clash.body.error, /занят/)
+
+  // пересечение частичное (сеанс час) — тоже занято
+  const overlap = await call(store, 'POST', '/api/bookings', { body: clientBooking('p2', '10:30', 'Клиент В') })
+  assert.equal(overlap.status, 409)
+
+  // после окончания сеанса второй мастер свободен
+  const later = await call(store, 'POST', '/api/bookings', { body: clientBooking('p2', '11:00', 'Клиент Г') })
+  assert.equal(later.status, 200)
+  assert.equal(store._peek().bookings.filter((b) => b.status !== 'cancelled').length, 2)
+})
+
+test('общий кабинет: отменённая запись кабинет не занимает', async () => {
+  const store = await twoMastersStore(1)
+  const token = (await call(store, 'POST', '/api/auth/login', { body: { username: 'owner', password: 'pw' } })).body.token
+  const first = await call(store, 'POST', '/api/bookings', { body: clientBooking('p1', '10:00', 'Клиент А') })
+  await call(store, 'POST', '/api/bookings/cancel', { token, body: { id: first.body.booking.id } })
+  const second = await call(store, 'POST', '/api/bookings', { body: clientBooking('p2', '10:00', 'Клиент Б') })
+  assert.equal(second.status, 200)
+})
+
+test('два кабинета: мастера работают параллельно', async () => {
+  const store = await twoMastersStore(2)
+  assert.equal((await call(store, 'POST', '/api/bookings', { body: clientBooking('p1', '10:00', 'А') })).status, 200)
+  assert.equal((await call(store, 'POST', '/api/bookings', { body: clientBooking('p2', '10:00', 'Б') })).status, 200)
+  // третьего мастера нет — но и кабинетов только два: у p1 своё время уже занято
+  assert.equal((await call(store, 'POST', '/api/bookings', { body: clientBooking('p1', '10:00', 'В') })).status, 409)
+})
+
+test('общий кабинет: администратор тоже не заводит запись на занятое время', async () => {
+  const store = await twoMastersStore(1)
+  const token = (await call(store, 'POST', '/api/auth/login', { body: { username: 'owner', password: 'pw' } })).body.token
+  await call(store, 'POST', '/api/bookings', { body: clientBooking('p1', '10:00', 'Клиент А') })
+  const manual = await call(store, 'POST', '/api/bookings/create', {
+    token,
+    body: { specialistId: 'p2', serviceId: 's1', date: '2026-07-13', start: '10:00', clientName: 'Т' },
+  })
+  assert.equal(manual.status, 409)
+})
+
+test('GET /api/data: мастер видит свои записи целиком, чужие — без контактов и выплат', async () => {
+  const store = await twoMastersStore(1)
+  const salt = 'm'
+  const ph = await hashPassword('mpw', salt)
+  store._peek().users.push({ id: 'm2', role: 'staff', username: 'mari', salt, passwordHash: ph, name: 'Мари', specialistId: 'p2', createdAt: 3 })
+  await call(store, 'POST', '/api/bookings', { body: clientBooking('p1', '10:00', 'Клиент А') })
+  await call(store, 'POST', '/api/bookings', { body: clientBooking('p2', '12:00', 'Клиент Б') })
+  const ownerToken = (await call(store, 'POST', '/api/auth/login', { body: { username: 'owner', password: 'pw' } })).body.token
+  await call(store, 'POST', '/api/bookings/pay', { token: ownerToken, body: { id: store._peek().bookings[0].id, paid: true } })
+
+  const token = (await call(store, 'POST', '/api/auth/login', { body: { username: 'mari', password: 'mpw' } })).body.token
+  const res = await call(store, 'GET', '/api/data', { token })
+  assert.equal(res.status, 200)
+  const own = res.body.data.bookings.find((b) => b.specialistId === 'p2')
+  const other = res.body.data.bookings.find((b) => b.specialistId === 'p1')
+  assert.equal(own.clientName, 'Клиент Б')
+  // чужая запись: время занятости есть (нужно для общего кабинета), данных клиента нет
+  assert.equal(other.start, '10:00')
+  assert.equal(other.clientName, undefined)
+  assert.equal(other.clientPhone, undefined)
+  assert.equal(other.paidAt, undefined)
+
+  // владелец по-прежнему видит всё
+  const full = await call(store, 'GET', '/api/data', { token: ownerToken })
+  assert.equal(full.body.data.bookings.find((b) => b.specialistId === 'p1').clientName, 'Клиент А')
+  assert.ok(full.body.data.bookings.find((b) => b.specialistId === 'p1').paidAt)
+})
+
+test('GET /api/data: сотрудник без привязки к мастеру видит записи всех', async () => {
+  const store = await twoMastersStore(1)
+  const salt = 'r'
+  const ph = await hashPassword('rpw', salt)
+  store._peek().users.push({ id: 'r1', role: 'staff', username: 'admin2', salt, passwordHash: ph, name: 'Ресепшн', createdAt: 3 })
+  await call(store, 'POST', '/api/bookings', { body: clientBooking('p1', '10:00', 'Клиент А') })
+  const token = (await call(store, 'POST', '/api/auth/login', { body: { username: 'admin2', password: 'rpw' } })).body.token
+  const res = await call(store, 'GET', '/api/data', { token })
+  assert.equal(res.body.data.bookings[0].clientName, 'Клиент А')
+})

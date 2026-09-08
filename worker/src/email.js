@@ -84,9 +84,14 @@ function masterEmail(data, specialistId) {
   const sp = (data.specialists || []).find((s) => s.id === specialistId) // legacy
   return sp && sp.email ? sp.email : null
 }
-// Все сотрудники с почтой, кроме мастера этой записи (ему уходит своё письмо).
-function staffEmails(data, excludeUserId) {
-  return (data.users || []).filter((u) => u.email && u.id !== excludeUserId).map((u) => u.email)
+// Сотрудники студии с почтой, которым уходит уведомление о записи: все, кроме
+// мастера этой записи (ему уходит своё письмо) и мастеров ДРУГИХ специалистов —
+// чужие клиенты и их контакты массажиста не касаются.
+function staffEmails(data, specialistId, excludeUserId) {
+  return (data.users || [])
+    .filter((u) => u.email && u.id !== excludeUserId)
+    .filter((u) => !u.specialistId || u.specialistId === specialistId)
+    .map((u) => u.email)
 }
 
 function bookingContext(data, booking) {
@@ -252,7 +257,7 @@ export async function notifyBookingCreated(env, data, booking) {
     jobs.push(sendEmail(env, { to: booking.clientEmail, subject: `Booking confirmed — ${ctx.brand}`, html }))
   }
   const mUser = masterUser(data, booking.specialistId)
-  const staff = staffEmails(data, mUser ? mUser.id : null)
+  const staff = staffEmails(data, booking.specialistId, mUser ? mUser.id : null)
   if (staff.length) {
     const html = layout(ctx, {
       title: 'New booking',
@@ -293,7 +298,7 @@ export async function notifyBookingCancelled(env, data, booking) {
     ctx.clientPhone ? ` Phone: ${esc(ctx.clientPhone)}.` : ''
   }`
   // сотрудники (владелец + остальные с почтой), кроме мастера записи
-  const staff = staffEmails(data, mUser ? mUser.id : null)
+  const staff = staffEmails(data, booking.specialistId, mUser ? mUser.id : null)
   if (staff.length) {
     const html = layout(ctx, { title: 'Booking cancelled', intro: staffIntro, showContacts: false, danger: true })
     jobs.push(sendEmail(env, { to: staff, subject: `Booking cancelled — ${ctx.brand}`, html }))

@@ -33,7 +33,9 @@ function emptyBrand(): Brand {
 }
 
 function emptySettings(): Settings {
-  return { minLeadMinutes: 0 }
+  // Один массажный кабинет по умолчанию: мастеров может быть несколько, но
+  // параллельно идёт столько сеансов, сколько кабинетов.
+  return { minLeadMinutes: 0, rooms: 1 }
 }
 
 /** Миграция контента к LocalizedString (старые данные были обычными строками). */
@@ -310,6 +312,18 @@ export function setDaySchedule(sched: DaySchedule): void {
     )
     // Пустой день (нет окон и перерывов) не храним — это просто выходной.
     if (sched.windows.length || sched.breaks.length) db.schedules.push(sched)
+  })
+}
+
+/** Записать сразу несколько дней (неделя целиком, копирование недели). */
+export function setDaySchedules(list: DaySchedule[]): void {
+  mutate((db) => {
+    for (const sched of list) {
+      db.schedules = db.schedules.filter(
+        (s) => !(s.specialistId === sched.specialistId && s.date === sched.date),
+      )
+      if (sched.windows.length || sched.breaks.length) db.schedules.push(sched)
+    }
   })
 }
 

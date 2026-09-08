@@ -3,6 +3,7 @@ import { useDB, saveSpecialist, deleteSpecialist, uid } from '../db'
 import { Avatar, Field, ImagePicker, Modal, LangTabs, setLoc } from '../ui'
 import { RichTextEditor } from '../RichText'
 import { pick, specialistName, emptyLoc } from '../localized'
+import { DEFAULT_PAYOUT } from '../payout'
 import { Icon } from '../icons'
 import { useAuth } from '../auth'
 import { useDeny } from './guard'
@@ -68,7 +69,15 @@ export function SpecialistsPage() {
                   </button>
                   <button
                     className="linkbtn danger"
-                    onClick={guard(() => confirm(`Удалить специалиста «${specialistName(sp, A)}»?`) && deleteSpecialist(sp.id))}
+                    onClick={guard(() => {
+                      // Вместе со специалистом уходят его расписание, записи и
+                      // отзывы — предупреждаем, сколько записей будет потеряно.
+                      const bookings = db.bookings.filter((b) => b.specialistId === sp.id).length
+                      const tail = bookings
+                        ? `\n\nВместе с ним удалятся его расписание, отзывы и ${bookings} записей (включая историю выплат). Это не отменить.`
+                        : '\n\nВместе с ним удалятся его расписание и отзывы.'
+                      if (confirm(`Удалить специалиста «${specialistName(sp, A)}»?${tail}`)) deleteSpecialist(sp.id)
+                    })}
                   >
                     Удалить
                   </button>
@@ -137,6 +146,22 @@ function SpecialistEditor({ specialist, onClose }: { specialist: Specialist; onC
             placeholder="Опыт, образование, подход к работе…"
           />
         </div>
+        <Field label="Выплата за сеанс, ₾ (необязательно)">
+          <input
+            type="number"
+            min={0}
+            step={5}
+            value={sp.payoutPerSession ?? ''}
+            placeholder={`по умолчанию ${db.settings.payoutPerSession ?? DEFAULT_PAYOUT}`}
+            onChange={(e) => {
+              const v = e.target.value.trim()
+              set('payoutPerSession', v === '' ? undefined : Math.max(0, Number(v) || 0))
+            }}
+          />
+        </Field>
+        <p className="muted small">
+          Своя ставка этого мастера. Пусто ⇒ берётся общая из раздела «Бренд» → «Выплаты массажисту».
+        </p>
         <div className="field">
           <span className="field-label">Выполняемые услуги</span>
           {db.services.length === 0 ? (

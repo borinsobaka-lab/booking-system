@@ -4,15 +4,15 @@ import { isRemote } from '../config'
 import * as remote from '../remote'
 import { useAuth } from '../auth'
 import { useDeny } from './guard'
-import { Field, Modal, money, duration } from '../ui'
+import { Avatar, Field, Modal, money, duration } from '../ui'
 import { todayKey, formatFull, weekdayLong, formatDayMonth, toMinutes, addMinutes } from '../time'
 import { freeSlots } from '../availability'
+import { payoutRate } from '../payout'
 import { pick, specialistName } from '../localized'
 import { Icon } from '../icons'
 import type { Booking, Lang } from '../types'
 
 const A: Lang = 'ru' // отображение контента в админке
-const DEFAULT_PAYOUT = 40 // ₾ за один проведённый сеанс
 
 type Tab = 'current' | 'past' | 'cancelled'
 
@@ -91,19 +91,31 @@ function LoadMore({ shown, total, onMore }: { shown: number; total: number; onMo
 
 export function BookingsPage() {
   const db = useDB()
-  const { canManageBookings } = useAuth()
+  const { canManageBookings, scopedSpecialistId } = useAuth()
   const [deny, denyModal] = useDeny()
   const [tab, setTab] = useState<Tab>('current')
   const [detail, setDetail] = useState<Booking | null>(null)
   const [adding, setAdding] = useState(false)
+  // Фильтр по мастеру — для тех, кто видит всех (владелец, администратор).
+  const [specFilter, setSpecFilter] = useState<string>('all')
 
-  const visits = useMemo(() => computeVisits(db.bookings), [db.bookings])
+  // Мастер видит только свои записи; остальные — все (с фильтром по мастеру).
+  const mine = useMemo(
+    () => (scopedSpecialistId ? db.bookings.filter((b) => b.specialistId === scopedSpecialistId) : db.bookings),
+    [db.bookings, scopedSpecialistId],
+  )
+  const listed = useMemo(
+    () => (scopedSpecialistId || specFilter === 'all' ? mine : mine.filter((b) => b.specialistId === specFilter)),
+    [mine, scopedSpecialistId, specFilter],
+  )
+
+  // Номера визитов считаем по всем доступным записям, не по отфильтрованным.
+  const visits = useMemo(() => computeVisits(mine), [mine])
   const today = todayKey()
   const now = new Date()
   const nowMin = now.getHours() * 60 + now.getMinutes()
-  const rate = db.settings.payoutPerSession ?? DEFAULT_PAYOUT
 
-  const confirmed = db.bookings.filter((b) => b.status !== 'cancelled')
+  const confirmed = listed.filter((b) => b.status !== 'cancelled')
   // Текущие: ещё не прошедшие. Лента — сегодня всегда + будущие дни с записями.
   const current = confirmed.filter((b) => !isPast(b, today, nowMin))
   const feedDates = [...new Set([today, ...current.map((b) => b.date)])].sort()
@@ -182,6 +194,28 @@ export function BookingsPage() {
         </button>
       </div>
 
+      {/* Кто видит всех — может смотреть по конкретному мастеру. */}
+      {!scopedSpecialistId && db.specialists.length > 1 && (
+        <div className="spec-picker book-specfilter">
+          <button
+            className={`spec-pill${specFilter === 'all' ? ' active' : ''}`}
+            onClick={() => setSpecFilter('all')}
+          >
+            <span>Все мастера</span>
+          </button>
+          {db.specialists.map((sp) => (
+            <button
+              key={sp.id}
+              className={`spec-pill${specFilter === sp.id ? ' active' : ''}`}
+              onClick={() => setSpecFilter(sp.id)}
+            >
+              <Avatar src={sp.avatar} name={specialistName(sp, A)} size={24} />
+              <span>{specialistName(sp, A)}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {db.specialists.length === 0 ? (
         <div className="empty">
           <div className="empty-emoji">
@@ -216,10 +250,10 @@ export function BookingsPage() {
           })}
         </div>
       ) : tab === 'past' ? (
-        <PastTab past={past} rate={rate} canEdit={canManageBookings} onOpen={setDetail} onTogglePaid={togglePaid} />
+        <PastTab past={past} canEdit={canManageBookings} onOpen={setDetail} onTogglePaid={togglePaid} />
       ) : (
         <BookingTable
-          bookings={db.bookings
+          bookings={listed
             .filter((b) => b.status === 'cancelled')
             .sort((a, b) => (b.cancelledAt || 0) - (a.cancelledAt || 0))}
           onOpen={setDetail}
@@ -231,7 +265,6 @@ export function BookingsPage() {
         <BookingDetail
           booking={detail}
           canEdit={canManageBookings}
-          rate={rate}
           isPast={isPast(detail, today, nowMin)}
           onCancel={cancel}
           onTogglePaid={togglePaid}
@@ -239,39 +272,44 @@ export function BookingsPage() {
           onClose={() => setDetail(null)}
         />
       )}
-      {adding && <ManualBooking date={today} onClose={() => setAdding(false)} />}
+      {adding && <ManualBooking today={today} onClose={() => setAdding(false)} />}
       {denyModal}
     </div>
   )
 }
 
-/** Вкладка «Прошедшие»: сводка по выплатам массажистам + список сеансов. */
+/** Вкладка «Прошедшие»: сводка по выплатам массажистам + список сеансов.
+ *  Владелец и администратор видят суммы по всем мастерам, мастер — только свои
+ *  (в `past` ему приходят только его сеансы). */
 function PastTab({
   past,
-  rate,
   canEdit,
   onOpen,
   onTogglePaid,
 }: {
   past: Booking[]
-  rate: number
   canEdit: boolean
   onOpen: (b: Booking) => void
   onTogglePaid: (b: Booking, paid: boolean) => void
 }) {
   const db = useDB()
+  const { scopedSpecialistId } = useAuth()
   const paged = usePaged(past)
-  // Сводка считается по ВСЕМ прошедшим (не только по показанным).
+  // Сводка считается по ВСЕМ прошедшим (не только по показанным). Ставка может
+  // отличаться от мастера к мастеру, поэтому суммируем по каждой записи.
   const paidCount = past.filter((b) => b.paidAt).length
   const unpaidCount = past.length - paidCount
-  const remaining = unpaidCount * rate
+  const remaining = past.reduce((sum, b) => (b.paidAt ? sum : sum + payoutRate(db, b.specialistId)), 0)
 
-  // Разбивка по мастерам: сколько сеансов и сколько ещё перевести.
-  const perSpec = new Map<string, { total: number; paid: number }>()
+  // Разбивка по мастерам: сколько сеансов, сколько уже выплачено и сколько ещё.
+  const perSpec = new Map<string, { total: number; paid: number; rem: number; sum: number }>()
   for (const b of past) {
-    const st = perSpec.get(b.specialistId) || { total: 0, paid: 0 }
+    const st = perSpec.get(b.specialistId) || { total: 0, paid: 0, rem: 0, sum: 0 }
+    const r = payoutRate(db, b.specialistId)
     st.total += 1
+    st.sum += r
     if (b.paidAt) st.paid += 1
+    else st.rem += r
     perSpec.set(b.specialistId, st)
   }
 
@@ -283,31 +321,32 @@ function PastTab({
         <div className="payout-head">
           <div>
             <div className="payout-remaining">{money(remaining)}</div>
-            <div className="muted small">осталось перевести массажистам</div>
+            <div className="muted small">
+              {scopedSpecialistId ? 'осталось получить за проведённые сеансы' : 'осталось перевести массажистам'}
+            </div>
           </div>
           <div className="payout-counts">
             <div>
               Прошло <b>{past.length}</b> сеанс.
             </div>
             <div className="muted small">
-              оплачено {paidCount} · осталось {unpaidCount} · {money(rate)}/сеанс
+              оплачено {paidCount} · осталось {unpaidCount}
             </div>
           </div>
         </div>
-        {perSpec.size > 0 && (
+        {perSpec.size > 1 && (
           <div className="payout-specs">
             {db.specialists
               .filter((sp) => perSpec.has(sp.id))
               .map((sp) => {
                 const st = perSpec.get(sp.id)!
-                const rem = (st.total - st.paid) * rate
                 return (
                   <div className="payout-spec" key={sp.id}>
                     <span className="payout-spec-name">{specialistName(sp, A)}</span>
                     <span className="muted small">
-                      {st.paid}/{st.total} оплачено
+                      {st.paid}/{st.total} оплачено · всего {money(st.sum)} · {money(payoutRate(db, sp.id))}/сеанс
                     </span>
-                    <b className={rem === 0 ? 'muted' : ''}>{money(rem)}</b>
+                    <b className={st.rem === 0 ? 'muted' : ''}>{money(st.rem)}</b>
                   </div>
                 )
               })}
@@ -317,7 +356,7 @@ function PastTab({
 
       <div className="past-list">
         {paged.visible.map((b) => (
-          <PastRow key={b.id} booking={b} rate={rate} canEdit={canEdit} onOpen={() => onOpen(b)} onTogglePaid={onTogglePaid} />
+          <PastRow key={b.id} booking={b} canEdit={canEdit} onOpen={() => onOpen(b)} onTogglePaid={onTogglePaid} />
         ))}
       </div>
       {paged.hasMore && <LoadMore shown={paged.shown} total={paged.total} onMore={paged.loadMore} />}
@@ -327,20 +366,18 @@ function PastTab({
 
 function PastRow({
   booking,
-  rate,
   canEdit,
   onOpen,
   onTogglePaid,
 }: {
   booking: Booking
-  rate: number
   canEdit: boolean
   onOpen: () => void
   onTogglePaid: (b: Booking, paid: boolean) => void
 }) {
   const db = useDB()
   const svc = db.services.find((s) => s.id === booking.serviceId)
-  const sp = db.specialists.find((s) => s.id === booking.specialistId)
+  const rate = payoutRate(db, booking.specialistId)
   const paid = !!booking.paidAt
   return (
     <div className={`past-row${paid ? ' paid' : ''}`}>
@@ -354,10 +391,9 @@ function PastRow({
             {booking.clientName || 'Без имени'}
             {booking.membership && <span className="badge badge-sub">по абонементу</span>}
           </div>
-          <div className="muted small">
-            {svc ? pick(svc.name, A) : '—'} · {sp ? specialistName(sp, A) : '—'}
-          </div>
+          <div className="muted small">{svc ? pick(svc.name, A) : '—'}</div>
         </div>
+        <SpecBadge specialistId={booking.specialistId} size={30} />
       </button>
       <div className="past-pay">
         {paid ? (
@@ -381,6 +417,22 @@ function PastRow({
   )
 }
 
+/** Аватар мастера в правой части карточки — сразу видно, к кому запись.
+ *  Под аватаром имя (без фамилии, чтобы не обрезалось), полное — в подсказке. */
+function SpecBadge({ specialistId, size = 34 }: { specialistId: string; size?: number }) {
+  const db = useDB()
+  const sp = db.specialists.find((s) => s.id === specialistId)
+  if (!sp) return null
+  const full = specialistName(sp, A)
+  const short = pick(sp.firstName, A) || full
+  return (
+    <div className="card-spec" title={full}>
+      <Avatar src={sp.avatar} name={full} size={size} />
+      <span className="card-spec-name">{short}</span>
+    </div>
+  )
+}
+
 function visitLabel(v?: Visit): { text: string; badge?: string; badgeClass?: string } {
   if (!v) return { text: '' }
   const text = `${v.overall}-й визит`
@@ -392,7 +444,6 @@ function visitLabel(v?: Visit): { text: string; badge?: string; badgeClass?: str
 function FeedCard({ booking, visit, onOpen }: { booking: Booking; visit?: Visit; onOpen: () => void }) {
   const db = useDB()
   const svc = db.services.find((s) => s.id === booking.serviceId)
-  const sp = db.specialists.find((s) => s.id === booking.specialistId)
   const vl = visitLabel(visit)
   return (
     <button className="feed-card" onClick={onOpen}>
@@ -407,10 +458,9 @@ function FeedCard({ booking, visit, onOpen }: { booking: Booking; visit?: Visit;
           {vl.badge && <span className={`badge ${vl.badgeClass || ''}`}>{vl.badge}</span>}
         </div>
         {vl.text && <div className="feed-card-visit muted">{vl.text}</div>}
-        <div className="feed-card-svc">
-          {svc ? pick(svc.name, A) : 'Услуга'} · {sp ? specialistName(sp, A) : '—'}
-        </div>
+        <div className="feed-card-svc">{svc ? pick(svc.name, A) : 'Услуга'}</div>
       </div>
+      <SpecBadge specialistId={booking.specialistId} />
     </button>
   )
 }
@@ -431,7 +481,6 @@ function BookingTable({
     <div className="book-history">
       {paged.visible.map((b) => {
         const svc = db.services.find((s) => s.id === b.serviceId)
-        const sp = db.specialists.find((s) => s.id === b.specialistId)
         return (
           <button className="book-history-row" key={b.id} onClick={() => onOpen(b)}>
             <div className="bh-date">
@@ -445,10 +494,9 @@ function BookingTable({
                 {b.clientName || 'Без имени'}
                 {b.membership && <span className="badge badge-sub">по абонементу</span>}
               </div>
-              <div className="muted small">
-                {svc ? pick(svc.name, A) : '—'} · {sp ? specialistName(sp, A) : '—'}
-              </div>
+              <div className="muted small">{svc ? pick(svc.name, A) : '—'}</div>
             </div>
+            <SpecBadge specialistId={b.specialistId} size={30} />
             <span className={`badge ${b.status === 'cancelled' ? '' : 'badge-ok'}`}>
               {b.status === 'cancelled' ? 'отменена' : 'активна'}
             </span>
@@ -463,7 +511,6 @@ function BookingTable({
 function BookingDetail({
   booking,
   canEdit,
-  rate,
   isPast,
   onCancel,
   onTogglePaid,
@@ -472,7 +519,6 @@ function BookingDetail({
 }: {
   booking: Booking
   canEdit: boolean
-  rate: number
   isPast: boolean
   onCancel: (b: Booking) => void
   onTogglePaid: (b: Booking, paid: boolean) => void
@@ -482,6 +528,7 @@ function BookingDetail({
   const db = useDB()
   const svc = db.services.find((s) => s.id === booking.serviceId)
   const sp = db.specialists.find((s) => s.id === booking.specialistId)
+  const rate = payoutRate(db, booking.specialistId)
   const cancelled = booking.status === 'cancelled'
   const paid = !!booking.paidAt
   const membership = !!booking.membership
@@ -501,7 +548,16 @@ function BookingDetail({
             {svc ? pick(svc.name, A) : '—'} {svc && <span className="muted">· {money(svc.price)} · {duration(svc.durationMin)}</span>}
           </dd>
           <dt>Специалист</dt>
-          <dd>{sp ? specialistName(sp, A) : '—'}</dd>
+          <dd className="detail-spec">
+            {sp ? (
+              <>
+                <Avatar src={sp.avatar} name={specialistName(sp, A)} size={26} />
+                {specialistName(sp, A)}
+              </>
+            ) : (
+              '—'
+            )}
+          </dd>
           <dt>Клиент</dt>
           <dd>{booking.clientName || 'без имени'}</dd>
           {booking.clientPhone && (
@@ -572,8 +628,9 @@ function BookingDetail({
   )
 }
 
-function ManualBooking({ date, onClose }: { date: string; onClose: () => void }) {
+function ManualBooking({ today, onClose }: { today: string; onClose: () => void }) {
   const db = useDB()
+  const [date, setDate] = useState(today)
   const [specId, setSpecId] = useState('')
   const [serviceId, setServiceId] = useState('')
   const [start, setStart] = useState('')
@@ -626,6 +683,9 @@ function ManualBooking({ date, onClose }: { date: string; onClose: () => void })
   return (
     <Modal title="Новая запись" onClose={onClose}>
       <div className="form">
+        <Field label="Дата">
+          <input type="date" value={date} min={today} onChange={(e) => { setDate(e.target.value || today); setStart('') }} />
+        </Field>
         <p className="muted small">{formatFull(date)}</p>
         <Field label="Специалист">
           <select
@@ -666,7 +726,10 @@ function ManualBooking({ date, onClose }: { date: string; onClose: () => void })
           <div className="field">
             <span className="field-label">Время</span>
             {slots.length === 0 ? (
-              <div className="muted small">Нет свободных слотов в этот день (проверьте расписание специалиста).</div>
+              <div className="muted small">
+                Нет свободных слотов в этот день: проверьте расписание специалиста и занятость кабинета
+                (в одно время идёт не больше сеансов, чем кабинетов).
+              </div>
             ) : (
               <div className="slot-grid">
                 {slots.map((s) => (

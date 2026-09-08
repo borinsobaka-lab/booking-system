@@ -24,6 +24,13 @@ export function canManageBookings(role: Role): boolean {
   return role === 'owner' || role === 'admin'
 }
 
+/** Кто видит записи, клиентов и выплаты по всем мастерам: владелец и
+ *  администратор. Мастер (сотрудник, привязанный к карточке специалиста) видит
+ *  только свои записи и свои суммы. */
+export function canSeeAllBookings(role: Role): boolean {
+  return role === 'owner' || role === 'admin'
+}
+
 /** Кто правит всё остальное (услуги, специалисты, бренд, учётки, новые записи). */
 export function canManageAll(role: Role): boolean {
   return role === 'owner'
