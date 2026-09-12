@@ -290,6 +290,11 @@ export function weekdayHeaders(lang: Lang): string[] {
   return WEEKDAYS_SHORT[lang]
 }
 
+/** Перевести строку вне провайдера (общие компоненты в русской админке). */
+export function translate(key: string, lang: Lang): string {
+  return DICT[key]?.[lang] ?? DICT[key]?.en ?? key
+}
+
 // --- Контекст ---
 interface I18nValue {
   lang: Lang
@@ -315,7 +320,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       }
       setLangState(l)
     }
-    const t = (key: string) => DICT[key]?.[lang] ?? DICT[key]?.en ?? key
+    const t = (key: string) => translate(key, lang)
     return { lang, setLang, t }
   }, [lang])
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>

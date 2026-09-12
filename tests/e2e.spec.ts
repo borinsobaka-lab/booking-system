@@ -424,3 +424,116 @@ test('запись: без полного номера бронировать н
   await page.locator('.phone-number').fill('555123456')
   await expect(book).toBeEnabled()
 })
+
+// --- Абонементы ---
+
+/** Мастер, услуга и одна будущая запись клиента с нормальным телефоном. */
+async function seedForMembership(page: Page) {
+  await page.evaluate(() => {
+    const L = (s: string) => ({ en: s, ka: s, ru: s })
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const d = new Date(Date.now() + 3 * 86_400_000)
+    const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+    const raw = JSON.parse(localStorage.getItem('booking-db-v1') || '{}')
+    raw.services = [{ id: 's1', name: L('Массаж'), description: L(''), durationMin: 60, price: 3000, image: null, createdAt: 1 }]
+    raw.specialists = [
+      { id: 'p1', firstName: L('Нино'), lastName: L('Ц.'), role: L('Массажист'), bio: L(''), avatar: null, serviceIds: ['s1'], createdAt: 1 },
+    ]
+    raw.bookings = [
+      {
+        id: 'b1', specialistId: 'p1', serviceId: 's1', date, start: '10:00', end: '11:00',
+        status: 'confirmed', clientName: 'Ана', clientPhone: '+995 555 12 34 56', createdAt: 1,
+      },
+    ]
+    raw.memberships = []
+    localStorage.setItem('booking-db-v1', JSON.stringify(raw))
+  })
+  await page.reload()
+}
+
+test('абонемент: заводится по телефону, списывает визит и возвращает при отмене', async ({ page }) => {
+  await loginAsOwner(page)
+  await seedForMembership(page)
+
+  await page.getByRole('button', { name: /Абонементы/ }).click()
+  await expect(page.getByRole('heading', { name: 'Абонементы' })).toBeVisible()
+
+  await page.getByRole('button', { name: '+ Абонемент' }).click()
+  await expect(page.getByRole('heading', { name: 'Новый абонемент' })).toBeVisible()
+  // Телефон вводится той же маской, что и на витрине: код страны + номер
+  await page.locator('.phone-number').fill('555123456')
+  // Имя клиента подставилось из его записи
+  await expect(page.getByLabel('Имя клиента (необязательно)')).toHaveValue('Ана')
+  await expect(page.getByText(/Сейчас у него 1 записей/)).toBeVisible()
+  await page.getByLabel('Количество посещений *').fill('2')
+  await page.getByRole('button', { name: 'Сохранить' }).click()
+
+  // Будущая запись клиента сразу пошла по абонементу: остался один визит
+  const card = page.locator('.ms-row')
+  await expect(card).toHaveCount(1)
+  await expect(card).toContainText('1 из 2')
+  await expect(card).toContainText('Списано 1')
+
+  // В «Записях» у этой записи появилась метка
+  await page.getByRole('button', { name: /Записи/ }).click()
+  await expect(page.getByText('по абонементу').first()).toBeVisible()
+
+  // Отмена записи возвращает визит на абонемент
+  await page.getByText('Ана').first().click()
+  await expect(page.getByText('осталось 1 из 2')).toBeVisible()
+  page.once('dialog', (d) => d.accept())
+  await page.getByRole('button', { name: 'Отменить запись' }).click()
+
+  await page.getByRole('button', { name: /Абонементы/ }).click()
+  await expect(page.locator('.ms-row')).toContainText('2 из 2')
+  await expect(page.locator('.ms-row')).toContainText('Списано 0')
+})
+
+test('абонемент: новая запись клиента списывает визит, лишние записи — обычные', async ({ page }) => {
+  await loginAsOwner(page)
+  await seedForMembership(page)
+
+  // Абонемент на один визит: первая запись по нему, вторая — за деньги
+  await page.getByRole('button', { name: /Абонементы/ }).click()
+  await page.getByRole('button', { name: '+ Абонемент' }).click()
+  await page.locator('.phone-number').fill('599000000')
+  await page.getByLabel('Имя клиента (необязательно)').fill('Гость')
+  await page.getByLabel('Количество посещений *').fill('1')
+  await page.getByRole('button', { name: 'Сохранить' }).click()
+  await expect(page.locator('.ms-row')).toContainText('1 из 1')
+
+  // Клиент записывается сам на витрине
+  await page.evaluate(() => {
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const d = new Date(Date.now() + 3 * 86_400_000)
+    const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+    const raw = JSON.parse(localStorage.getItem('booking-db-v1') || '{}')
+    const make = (id: string, start: string, end: string) => ({
+      id, specialistId: 'p1', serviceId: 's1', date, start, end,
+      status: 'confirmed', clientName: 'Гость', clientPhone: '+995 599 00 00 00', createdAt: Date.now(),
+    })
+    raw.bookings.push(make('b2', '12:00', '13:00'), make('b3', '14:00', '15:00'))
+    localStorage.setItem('booking-db-v1', JSON.stringify(raw))
+  })
+  await page.reload()
+  await page.getByRole('button', { name: /Абонементы/ }).click()
+  await expect(page.locator('.ms-row')).toContainText('0 из 1')
+
+  // Помечена ровно одна запись — визит в абонементе был один
+  await page.getByRole('button', { name: /Записи/ }).click()
+  await expect(page.getByText('по абонементу')).toHaveCount(1)
+})
+
+test('абонементы: сотрудник видит раздел, но не может его менять', async ({ page }) => {
+  await loginAsOwner(page)
+  await seedForMembership(page)
+  await createUser(page, 'Сотрудник', 'staff2', 'staff2pass')
+  await logout(page)
+
+  await login(page, 'staff2', 'staff2pass')
+  await page.getByRole('button', { name: /Абонементы/ }).click()
+  await expect(page.getByRole('heading', { name: 'Абонементы' })).toBeVisible()
+  await page.getByRole('button', { name: '+ Абонемент' }).click()
+  await expect(page.getByRole('heading', { name: 'Только просмотр' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Новый абонемент' })).toHaveCount(0)
+})

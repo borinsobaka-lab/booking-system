@@ -4,7 +4,7 @@
 
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Flag } from './flags'
-import { useI18n } from './i18n'
+import { translate, useI18n } from './i18n'
 import {
   countryByCode,
   countryMatches,
@@ -16,6 +16,7 @@ import {
   maxNational,
   parsePhone,
 } from './phone'
+import type { Lang } from './types'
 
 /** Высота выпадающего списка (см. .phone-drop в styles.css). */
 const DROP_HEIGHT = 340
@@ -24,13 +25,20 @@ export function PhoneInput({
   id,
   value,
   onChange,
+  lang: langProp,
+  autoFocus = false,
 }: {
   id?: string
   /** Номер целиком, как он уходит в запись: «+995 555 12 34 56». */
   value: string
   onChange: (value: string) => void
+  /** Язык списка стран. По умолчанию — язык витрины; админка русская. */
+  lang?: Lang
+  autoFocus?: boolean
 }) {
-  const { lang, t } = useI18n()
+  const { lang: uiLang } = useI18n()
+  const lang = langProp ?? uiLang
+  const t = (key: string) => translate(key, lang)
   // Страна и цифры живут здесь: из строки их каждый раз не вычислить — у разных
   // стран бывает один код (+1 у США и Канады), и выбор пользователя важнее.
   const [phone, setPhone] = useState(() => parsePhone(value))
@@ -167,6 +175,7 @@ export function PhoneInput({
           value={formatNational(phone.national, country.mask)}
           placeholder={maskPlaceholder(country.mask)}
           onChange={(e) => onNumber(e.target.value)}
+          autoFocus={autoFocus}
         />
       </div>
 

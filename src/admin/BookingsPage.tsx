@@ -8,6 +8,7 @@ import { Avatar, Field, Modal, money, duration } from '../ui'
 import { todayKey, formatFull, weekdayLong, formatDayMonth, toMinutes, addMinutes } from '../time'
 import { freeSlots } from '../availability'
 import { payoutRate } from '../payout'
+import { leftOf } from '../memberships'
 import { pick, specialistName } from '../localized'
 import { Icon } from '../icons'
 import type { Booking, DB, Lang } from '../types'
@@ -580,6 +581,7 @@ function BookingDetail({
   const cancelled = booking.status === 'cancelled'
   const paid = !!booking.paidAt
   const membership = !!booking.membership
+  const pass = booking.membershipId ? (db.memberships ?? []).find((m) => m.id === booking.membershipId) : undefined
   const showPayout = isPast && !cancelled
   return (
     <Modal title="Запись" onClose={onClose}>
@@ -645,6 +647,14 @@ function BookingDetail({
             <span className={`badge ${cancelled ? '' : 'badge-ok'}`}>{cancelled ? 'отменена' : 'подтверждена'}</span>
             {membership && <span className="badge badge-sub">по абонементу</span>}
           </dd>
+          {pass && (
+            <>
+              <dt>Абонемент</dt>
+              <dd>
+                {pass.clientName || pass.clientPhone} · осталось {leftOf(pass)} из {pass.total}
+              </dd>
+            </>
+          )}
           {showPayout && (
             <>
               <dt>Выплата мастеру</dt>
@@ -660,7 +670,15 @@ function BookingDetail({
         </dl>
         <div className="form-actions">
           {!cancelled && canEdit && (
-            <button className="btn" onClick={() => onToggleMembership(booking, !membership)}>
+            <button
+              className="btn"
+              title={
+                membership
+                  ? 'Клиент заплатит за этот сеанс сам; если визит был списан с абонемента — он вернётся'
+                  : 'Клиент не платит за этот сеанс; если у него есть абонемент — визит спишется с него'
+              }
+              onClick={() => onToggleMembership(booking, !membership)}
+            >
               {membership ? 'Снять «по абонементу»' : 'Отметить по абонементу'}
             </button>
           )}
