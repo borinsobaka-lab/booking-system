@@ -9,6 +9,7 @@ import { todayKey, formatFull, weekdayLong, formatDayMonth, toMinutes, addMinute
 import { freeSlots } from '../availability'
 import { payoutRate } from '../payout'
 import { leftOf } from '../memberships'
+import { clientIndex } from '../clients'
 import { pick, specialistName } from '../localized'
 import { Icon } from '../icons'
 import type { Booking, DB, Lang } from '../types'
@@ -22,21 +23,16 @@ function isPast(b: Booking, nowKey: string, nowMin: number): boolean {
   return b.date < nowKey || (b.date === nowKey && toMinutes(b.end) <= nowMin)
 }
 
-/** Ключ клиента для подсчёта визитов: телефон → email → имя. */
-function clientKey(b: Booking): string {
-  const phone = (b.clientPhone || '').replace(/[^\d]/g, '')
-  if (phone) return 'p:' + phone
-  if (b.clientEmail) return 'e:' + b.clientEmail.trim().toLowerCase()
-  return 'n:' + (b.clientName || '').trim().toLowerCase()
-}
-
 interface Visit {
   overall: number
   master: number
 }
 
-/** Номер визита клиента (в целом и к конкретному мастеру) среди подтверждённых. */
+/** Номер визита клиента (в целом и к конкретному мастеру) среди подтверждённых.
+ *  Клиента узнаём по телефону и по почте (см. src/clients.ts): записался с
+ *  другого номера, но с той же почтой — визит всё равно не первый. */
 function computeVisits(bookings: Booking[]): Map<string, Visit> {
+  const owner = clientIndex(bookings)
   const confirmed = bookings
     .filter((b) => b.status !== 'cancelled')
     .sort((a, b) => (a.date !== b.date ? (a.date < b.date ? -1 : 1) : a.start < b.start ? -1 : 1))
@@ -44,7 +40,7 @@ function computeVisits(bookings: Booking[]): Map<string, Visit> {
   const master = new Map<string, number>()
   const res = new Map<string, Visit>()
   for (const b of confirmed) {
-    const k = clientKey(b)
+    const k = owner.get(b.id) ?? b.id
     const o = (overall.get(k) || 0) + 1
     overall.set(k, o)
     const mk = k + '|' + b.specialistId

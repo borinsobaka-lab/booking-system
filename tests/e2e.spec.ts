@@ -537,3 +537,49 @@ test('абонементы: сотрудник видит раздел, но н�
   await expect(page.getByRole('heading', { name: 'Только просмотр' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Новый абонемент' })).toHaveCount(0)
 })
+
+test('визиты клиента считаются и по телефону, и по почте', async ({ page }) => {
+  await loginAsOwner(page)
+  await page.evaluate(() => {
+    const L = (s: string) => ({ en: s, ka: s, ru: s })
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const key = (shift: number) => {
+      const d = new Date(Date.now() + shift * 86_400_000)
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+    }
+    const raw = JSON.parse(localStorage.getItem('booking-db-v1') || '{}')
+    raw.services = [{ id: 's1', name: L('Массаж'), description: L(''), durationMin: 60, price: 3000, image: null, createdAt: 1 }]
+    raw.specialists = [
+      { id: 'p1', firstName: L('Нино'), lastName: L('Ц.'), role: L('Массажист'), bio: L(''), avatar: null, serviceIds: ['s1'], createdAt: 1 },
+    ]
+    const bk = (id: string, shift: number, name: string, phone: string, email: string) => ({
+      id, specialistId: 'p1', serviceId: 's1', date: key(shift), start: '10:00', end: '11:00',
+      status: 'confirmed', clientName: name, clientPhone: phone, clientEmail: email, createdAt: 1,
+    })
+    raw.bookings = [
+      bk('b1', 1, 'Ана раз', '+995 555 12 34 56', 'ana@example.com'),
+      // другой телефон, но та же почта — тот же человек
+      bk('b2', 2, 'Ана два', '+995 599 11 11 11', 'ana@example.com'),
+      // тот же телефон, что в первой записи, но другая почта — снова он же
+      bk('b3', 3, 'Ана три', '+995 555 12 34 56', 'another@example.com'),
+      bk('b4', 4, 'Гость', '+995 577 00 00 00', 'guest@example.com'),
+    ]
+    raw.memberships = []
+    localStorage.setItem('booking-db-v1', JSON.stringify(raw))
+  })
+  await page.reload()
+
+  const card = (name: string) => page.locator('.feed-card').filter({ hasText: name })
+  await expect(card('Ана раз')).toContainText('1-й визит')
+  await expect(card('Ана раз')).toContainText('новый клиент')
+  // Почта повторилась — визит уже не первый, значка «новый клиент» нет
+  await expect(card('Ана два')).toContainText('2-й визит')
+  await expect(card('Ана два')).not.toContainText('новый клиент')
+  // Телефон повторился — третий визит того же человека
+  await expect(card('Ана три')).toContainText('3-й визит')
+  await expect(card('Гость')).toContainText('новый клиент')
+
+  // В «Клиентах» тот же человек — одной строкой, а не тремя
+  await page.getByRole('button', { name: /Клиенты/ }).click()
+  await expect(page.locator('.client-row')).toHaveCount(2)
+})

@@ -11,17 +11,10 @@
 // (`applyMemberships`), там же на них есть тесты. Меняете правило — меняйте в
 // обоих местах.
 
+import { phoneKey } from './clients'
 import type { Booking, DB, Membership } from './types'
 
-/**
- * Ключ сравнения телефонов — последние 9 цифр. Номер из формы записи приходит
- * в международном виде, но в старых записях и ручных бронях код страны могли
- * не написать, поэтому сравниваем «значимый хвост», а не строку целиком.
- */
-export function phoneKey(phone: string | undefined): string {
-  const digits = (phone || '').replace(/\D/g, '')
-  return digits.length >= 7 ? digits.slice(-9) : ''
-}
+export { phoneKey }
 
 const byTime = (a: Booking, b: Booking) =>
   a.date !== b.date ? (a.date < b.date ? -1 : 1) : a.start < b.start ? -1 : a.start > b.start ? 1 : 0
