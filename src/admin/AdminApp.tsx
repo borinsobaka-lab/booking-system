@@ -13,11 +13,21 @@ import { UsersPage } from './UsersPage'
 import { SettingsPage } from './SettingsPage'
 import { ReviewsPage } from './ReviewsPage'
 import { ClientsPage } from './ClientsPage'
+import { MembershipsPage } from './MembershipsPage'
 import { Avatar } from '../ui'
 import { Icon, type IconName } from '../icons'
 import { BrandLogo } from './BrandLogo'
 
-type Tab = 'bookings' | 'services' | 'specialists' | 'schedule' | 'reviews' | 'clients' | 'users' | 'settings'
+type Tab =
+  | 'bookings'
+  | 'services'
+  | 'specialists'
+  | 'schedule'
+  | 'reviews'
+  | 'clients'
+  | 'memberships'
+  | 'users'
+  | 'settings'
 
 // primary — в нижнем меню на телефоне; остальное прячется в кнопку «Ещё».
 const TABS: { id: Tab; path: string; label: string; icon: IconName; ownerOnly?: boolean; primary?: boolean }[] = [
@@ -25,6 +35,7 @@ const TABS: { id: Tab; path: string; label: string; icon: IconName; ownerOnly?: 
   { id: 'schedule', path: `${ADMIN_BASE}/schedule`, label: 'Расписание', icon: 'calendarClock', primary: true },
   { id: 'reviews', path: `${ADMIN_BASE}/reviews`, label: 'Отзывы', icon: 'message', primary: true },
   { id: 'clients', path: `${ADMIN_BASE}/clients`, label: 'Клиенты', icon: 'contact', primary: true },
+  { id: 'memberships', path: `${ADMIN_BASE}/memberships`, label: 'Абонементы', icon: 'ticket' },
   { id: 'services', path: `${ADMIN_BASE}/services`, label: 'Услуги', icon: 'sparkles' },
   { id: 'specialists', path: `${ADMIN_BASE}/specialists`, label: 'Специалисты', icon: 'users' },
   { id: 'users', path: `${ADMIN_BASE}/users`, label: 'Пользователи', icon: 'key', ownerOnly: true },
@@ -37,6 +48,7 @@ function tabForPath(path: string): Tab {
   if (path.startsWith(`${ADMIN_BASE}/schedule`)) return 'schedule'
   if (path.startsWith(`${ADMIN_BASE}/reviews`)) return 'reviews'
   if (path.startsWith(`${ADMIN_BASE}/clients`)) return 'clients'
+  if (path.startsWith(`${ADMIN_BASE}/memberships`)) return 'memberships'
   if (path.startsWith(`${ADMIN_BASE}/users`)) return 'users'
   if (path.startsWith(`${ADMIN_BASE}/settings`)) return 'settings'
   return 'bookings'
@@ -137,6 +149,7 @@ export function AdminApp({ path }: { path: string }) {
         {tab === 'bookings' && <BookingsPage />}
         {tab === 'schedule' && <SchedulePage />}
         {tab === 'clients' && <ClientsPage />}
+        {tab === 'memberships' && <MembershipsPage />}
         {tab === 'services' && <ServicesPage />}
         {tab === 'specialists' && <SpecialistsPage />}
         {tab === 'reviews' && <ReviewsPage />}

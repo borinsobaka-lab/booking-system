@@ -16,6 +16,10 @@ import {
   verifySession,
   verifyCancelToken,
   verifyReviewToken,
+  applyMemberships,
+  membershipForPhone,
+  phoneKey,
+  studioToday,
   uid,
 } from './logic.js'
 import { notifyBookingCreated, notifyBookingCancelled, sendPasswordReset, sendClientInvite } from './email.js'
@@ -149,6 +153,8 @@ export async function handle(request, env, deps) {
           createdAt: now(),
         }
         data.bookings.push(created)
+        // Есть абонемент на этот телефон — новая запись сразу идёт по нему.
+        applyMemberships(data, studioToday(now(), env.STUDIO_TZ))
         savedData = data
         return data
       }, 'booking: new')
@@ -199,6 +205,7 @@ export async function handle(request, env, deps) {
           createdAt: now(),
         }
         data.bookings.push(created)
+        applyMemberships(data, studioToday(now(), env.STUDIO_TZ))
         savedData = data
         return data
       }, 'booking: admin new')
@@ -223,6 +230,8 @@ export async function handle(request, env, deps) {
         if (!bk || bk.status === 'cancelled') return null
         bk.status = 'cancelled'
         bk.cancelledAt = now()
+        // Отменённая запись визит не тратит — абонемент пересчитываем.
+        applyMemberships(data, studioToday(now(), env.STUDIO_TZ))
         removed = bk
         savedData = data
         return data
@@ -268,12 +277,86 @@ export async function handle(request, env, deps) {
       await store.update((data) => {
         const bk = (data.bookings || []).find((x) => x.id === b.id)
         if (!bk) return null
-        bk.membership = on ? true : undefined
+        if (on) {
+          // Ставим метку руками: если у клиента есть абонемент со свободными
+          // визитами — привязываем запись к нему.
+          bk.membership = true
+          bk.membershipOptOut = undefined
+          const m = membershipForPhone(data.memberships, bk.clientPhone)
+          if (m) bk.membershipId = m.id
+        } else {
+          // Сняли руками — автоматика эту запись больше не трогает.
+          bk.membership = undefined
+          bk.membershipId = undefined
+          bk.membershipOptOut = true
+        }
+        applyMemberships(data, studioToday(now(), env.STUDIO_TZ))
         found = true
         return data
       }, 'booking: membership')
 
       if (!found) return json({ error: 'Запись не найдена' }, 404, env, request)
+      return json({ ok: true }, 200, env, request)
+    }
+
+    // --- Абонементы: завести/изменить (владелец и администратор) ---
+    if (path === '/api/memberships/save' && method === 'POST') {
+      const session = await readSession(request, env, now())
+      if (!session) return json({ error: 'Требуется вход' }, 401, env, request)
+      if (!mayManageBookings(session)) return json({ error: 'Недостаточно прав' }, 403, env, request)
+      const b = await request.json().catch(() => null)
+      if (!b) return json({ error: 'bad json' }, 400, env, request)
+      const clientPhone = String(b.clientPhone || '').slice(0, 60).trim()
+      const total = Math.floor(Number(b.total))
+      if (!phoneKey(clientPhone)) return json({ error: 'Укажите телефон клиента' }, 400, env, request)
+      if (!(total >= 1 && total <= 1000)) return json({ error: 'Укажите количество посещений' }, 400, env, request)
+
+      let saved = null
+      await store.update((data) => {
+        if (!Array.isArray(data.memberships)) data.memberships = []
+        const existing = b.id ? data.memberships.find((m) => m.id === b.id) : null
+        if (b.id && !existing) return null
+        const rec = existing || {
+          id: uid(now(), rnd()),
+          startDate: studioToday(now(), env.STUDIO_TZ),
+          used: 0,
+          createdAt: now(),
+        }
+        rec.clientName = b.clientName ? String(b.clientName).slice(0, 200) : undefined
+        rec.clientPhone = clientPhone
+        rec.total = total
+        rec.note = b.note ? String(b.note).slice(0, 500) : undefined
+        if (!existing) data.memberships.push(rec)
+        applyMemberships(data, studioToday(now(), env.STUDIO_TZ))
+        saved = rec
+        return data
+      }, b.id ? 'membership: update' : 'membership: new')
+
+      if (!saved) return json({ error: 'Абонемент не найден' }, 404, env, request)
+      return json({ ok: true, membership: saved }, 200, env, request)
+    }
+
+    // --- Абонементы: удалить (владелец и администратор) ---
+    if (path === '/api/memberships/delete' && method === 'POST') {
+      const session = await readSession(request, env, now())
+      if (!session) return json({ error: 'Требуется вход' }, 401, env, request)
+      if (!mayManageBookings(session)) return json({ error: 'Недостаточно прав' }, 403, env, request)
+      const b = await request.json().catch(() => null)
+      if (!b || !b.id) return json({ error: 'bad json' }, 400, env, request)
+
+      let removed = false
+      await store.update((data) => {
+        const list = Array.isArray(data.memberships) ? data.memberships : []
+        const next = list.filter((m) => m.id !== b.id)
+        if (next.length === list.length) return null
+        data.memberships = next
+        // Будущие записи снова станут обычными, прошедшие визиты — как были.
+        applyMemberships(data, studioToday(now(), env.STUDIO_TZ))
+        removed = true
+        return data
+      }, 'membership: delete')
+
+      if (!removed) return json({ error: 'Абонемент не найден' }, 404, env, request)
       return json({ ok: true }, 200, env, request)
     }
 
@@ -358,6 +441,7 @@ export async function handle(request, env, deps) {
         if (!bk || bk.status === 'cancelled') return null
         bk.status = 'cancelled'
         bk.cancelledAt = now()
+        applyMemberships(data, studioToday(now(), env.STUDIO_TZ))
         removed = bk
         savedData = data
         return data
@@ -560,6 +644,9 @@ export async function handle(request, env, deps) {
         next.reviews = isOwner ? incoming.reviews ?? current.reviews : current.reviews
         // Приглашения — только через /api/clients/invite (счётчик, письма).
         next.clientInvites = current.clientInvites
+        // Абонементы — только через /api/memberships/* (там же пересчёт визитов,
+        // иначе браузер со старой копией мог бы затереть остаток).
+        next.memberships = current.memberships
 
         // Пользователей меняет только суперадминистратор. Секреты (salt/hash)
         // подтягиваем из текущих данных, если браузер их не прислал.

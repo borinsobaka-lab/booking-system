@@ -7,21 +7,13 @@ import { useDeny } from './guard'
 import { Avatar } from '../ui'
 import { Icon } from '../icons'
 import { formatDayMonth } from '../time'
-import type { Booking } from '../types'
+import { clientIndex } from '../clients'
 
 // Клиент считается «давно не был», если последний визит был раньше, чем N дней назад.
 const RETURN_DAYS = 14
 // Не даём слать приглашения чаще, чем раз в N дней.
 const COOLDOWN_DAYS = 14
 const DAY = 86_400_000
-
-// Ключ клиента: телефон → email → имя (как в разделе «Записи»).
-function clientKey(b: Booking): string {
-  const phone = (b.clientPhone || '').replace(/[^\d]/g, '')
-  if (phone) return 'p:' + phone
-  if (b.clientEmail) return 'e:' + b.clientEmail.trim().toLowerCase()
-  return 'n:' + (b.clientName || '').trim().toLowerCase()
-}
 
 function daysAgoFromDate(dateKey: string): number {
   const ms = Date.parse(dateKey + 'T00:00:00Z')
@@ -53,12 +45,14 @@ export function ClientsPage() {
   const [doneEmail, setDoneEmail] = useState<string | null>(null)
 
   // Мастер видит только своих клиентов; владелец и администратор — всех.
+  // Один клиент узнаётся по телефону и по почте — см. src/clients.ts.
   const clients = useMemo(() => {
+    const owner = clientIndex(db.bookings)
     const map = new Map<string, Client>()
     for (const b of db.bookings) {
       if (b.status === 'cancelled') continue
       if (scopedSpecialistId && b.specialistId !== scopedSpecialistId) continue
-      const k = clientKey(b)
+      const k = owner.get(b.id) ?? b.id
       const c = map.get(k) ?? { name: '', phone: '', email: '', lastDate: '', visits: 0 }
       c.visits += 1
       if (b.date > c.lastDate) c.lastDate = b.date

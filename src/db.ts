@@ -5,7 +5,9 @@
 import { useSyncExternalStore } from 'react'
 import { isRemote } from './config'
 import { toLoc } from './localized'
-import type { Booking, Brand, DaySchedule, DB, Review, Service, Settings, Specialist, User } from './types'
+import { applyMemberships, membershipForPhone } from './memberships'
+import { todayKey } from './time'
+import type { Booking, Brand, DaySchedule, DB, Membership, Review, Service, Settings, Specialist, User } from './types'
 
 const STORAGE_KEY = 'booking-db-v1'
 
@@ -64,6 +66,7 @@ function emptyDB(): DB {
     bookings: [],
     reviews: [],
     clientInvites: [],
+    memberships: [],
   }
 }
 
@@ -88,7 +91,7 @@ function load(): DB {
     if (!raw) return withDemoOwner(emptyDB())
     const parsed = JSON.parse(raw) as DB
     // Мягкая миграция: дозаполняем отсутствующие поля + контент → LocalizedString.
-    return withDemoOwner(
+    const db = withDemoOwner(
       migrateContent({
         ...emptyDB(),
         ...parsed,
@@ -96,6 +99,10 @@ function load(): DB {
         settings: { ...emptySettings(), ...parsed.settings },
       }),
     )
+    // Данные могли измениться мимо приложения (другая вкладка, ручная правка) —
+    // приводим абонементы в согласованный вид сразу при загрузке.
+    applyMemberships(db, todayKey())
+    return db
   } catch {
     return withDemoOwner(emptyDB())
   }
@@ -150,6 +157,10 @@ export function mutate(fn: (draft: DB) => DB | void): void {
   // Мутаторы могут либо вернуть новое состояние, либо править переданный draft
   // на месте (тогда fn возвращает void и мы сохраняем именно draft).
   state = (next ?? draft) as DB
+  // Любое изменение может задеть абонементы (новая запись, отмена, правка
+  // абонемента) — пересчитываем привязку и остатки одним местом, чтобы нигде
+  // про это не забыть. Пересчёт идемпотентный и дешёвый.
+  applyMemberships(state, todayKey())
   persist()
   emit()
 }
@@ -364,11 +375,43 @@ export function setBookingPaidLocal(id: string, paid: boolean): void {
   })
 }
 
-/** Отметить/снять «по абонементу» (только владелец). */
+/** Отметить/снять «по абонементу» вручную (владелец и администратор).
+ *  Снятая вручную метка запоминается: автоматика такую запись больше не
+ *  привязывает к абонементу. Проставленная — привязывается к абонементу
+ *  клиента, если у того есть свободные визиты. */
 export function setBookingMembershipLocal(id: string, membership: boolean): void {
   mutate((db) => {
     const b = db.bookings.find((x) => x.id === id)
-    if (b) b.membership = membership ? true : undefined
+    if (!b) return
+    if (membership) {
+      b.membership = true
+      b.membershipOptOut = undefined
+      const m = membershipForPhone(db.memberships ?? [], b.clientPhone)
+      if (m) b.membershipId = m.id
+    } else {
+      b.membership = undefined
+      b.membershipId = undefined
+      b.membershipOptOut = true
+    }
+  })
+}
+
+// --- Мутации: абонементы ---
+
+/** Завести или изменить абонемент (привязка записей пересчитается сама). */
+export function saveMembershipLocal(m: Membership): void {
+  mutate((db) => {
+    if (!Array.isArray(db.memberships)) db.memberships = []
+    const i = db.memberships.findIndex((x) => x.id === m.id)
+    if (i >= 0) db.memberships[i] = { ...db.memberships[i], ...m }
+    else db.memberships.push(m)
+  })
+}
+
+/** Удалить абонемент. Будущие записи снова станут обычными, история — нет. */
+export function deleteMembershipLocal(id: string): void {
+  mutate((db) => {
+    db.memberships = (db.memberships ?? []).filter((m) => m.id !== id)
   })
 }
 

@@ -2419,6 +2419,130 @@ textarea {
   font-size: 12px;
   margin-top: 4px;
 }
+/* ===== Телефон: код страны с круглым флагом + номер по маске ===== */
+.phone-field {
+  position: relative;
+}
+.phone-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+.phone-country {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: none;
+  padding: 0 12px;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  color: var(--text);
+  font-size: 16px;
+  transition: border-color 0.15s;
+}
+.phone-country:hover,
+.phone-field.open .phone-country {
+  border-color: var(--accent);
+}
+.phone-dial {
+  font-weight: 600;
+  white-space: nowrap;
+}
+.phone-caret {
+  display: inline-flex;
+  color: var(--muted);
+  transition: transform 0.15s;
+}
+.phone-field.open .phone-caret {
+  transform: rotate(180deg);
+}
+.phone-number {
+  flex: 1;
+  min-width: 0;
+  letter-spacing: 0.02em;
+}
+/* Круглый флаг: рисунок — SVG, обрезает его кружком обёртка. */
+.flag {
+  display: inline-block;
+  flex: none;
+  border-radius: 50%;
+  overflow: hidden;
+  line-height: 0;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1);
+}
+.flag svg {
+  display: block;
+}
+
+/* Выпадающий список стран */
+.phone-drop {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 12px 32px -14px rgba(0, 0, 0, 0.3);
+}
+.phone-drop.up {
+  top: auto;
+  bottom: calc(100% + 6px);
+}
+.phone-search {
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.phone-search input {
+  padding: 10px 12px;
+  font-size: 15px;
+  border-radius: 10px;
+}
+.phone-list {
+  max-height: 282px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.phone-opt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border: none;
+  background: none;
+  text-align: left;
+  font-size: 15px;
+  color: var(--text);
+}
+.phone-opt.active {
+  background: var(--accent-soft);
+}
+.phone-opt[aria-selected='true'] .phone-opt-name {
+  font-weight: 600;
+}
+.phone-opt-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.phone-opt-dial {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.phone-empty {
+  padding: 18px 12px;
+  text-align: center;
+  font-size: 14px;
+}
+
 .consent {
   display: flex;
   align-items: flex-start;
@@ -2916,6 +3040,92 @@ textarea {
   font-size: 11px;
 }
 
+/* ===== Абонементы ===== */
+.ms-search {
+  max-width: 360px;
+  margin-bottom: 12px;
+}
+.ms-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 760px;
+}
+.ms-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 14px;
+}
+/* Израсходованный абонемент не прячем, но он должен быть тише действующих. */
+.ms-row.spent {
+  background: var(--sunken);
+}
+.ms-main {
+  flex: 1;
+  min-width: 140px;
+}
+.ms-name {
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ms-sub {
+  font-size: 13px;
+}
+.ms-sub a {
+  color: var(--muted);
+}
+.ms-note {
+  margin-top: 2px;
+}
+.ms-count {
+  flex: none;
+  min-width: 170px;
+  text-align: right;
+}
+.ms-left {
+  font-size: 14px;
+  color: var(--muted);
+}
+.ms-left b {
+  font-size: 19px;
+  color: var(--text);
+  margin-right: 2px;
+}
+.ms-bar {
+  height: 5px;
+  border-radius: 3px;
+  background: var(--sunken);
+  overflow: hidden;
+  margin: 5px 0 4px;
+}
+.ms-bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+}
+.ms-row.spent .ms-bar {
+  background: var(--border);
+}
+.ms-actions {
+  flex: none;
+  display: flex;
+  gap: 12px;
+  margin-left: 4px;
+}
+.field-hint {
+  display: block;
+  margin-top: 5px;
+}
+
 /* ===== Нижнее меню: лист «Ещё» ===== */
 .admin-more-overlay {
   position: fixed;
@@ -3169,6 +3379,16 @@ textarea {
     justify-content: flex-end;
     gap: 8px;
     width: 100%;
+  }
+  /* Абонемент: остаток и кнопки — отдельными строками под клиентом. */
+  .ms-count {
+    flex: 1 1 100%;
+    text-align: left;
+    margin-left: 54px;
+  }
+  .ms-actions {
+    width: 100%;
+    margin-left: 54px;
   }
   /* Мастер записи: на узком экране хватает аватара, подпись прячем. */
   .card-spec {

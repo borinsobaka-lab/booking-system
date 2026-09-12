@@ -109,6 +109,23 @@ export async function setBookingMembership(id: string, membership: boolean): Pro
   await api('/api/bookings/membership', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ id, membership }) })
 }
 
+/** Завести/изменить абонемент (нужна сессия владельца или администратора).
+ *  Сервер сам пересчитает привязку записей и остаток визитов. */
+export async function saveMembershipRemote(m: {
+  id?: string
+  clientName?: string
+  clientPhone: string
+  total: number
+  note?: string
+}): Promise<void> {
+  await api('/api/memberships/save', { method: 'POST', headers: authHeaders(), body: JSON.stringify(m) })
+}
+
+/** Удалить абонемент (нужна сессия владельца или администратора). */
+export async function deleteMembershipRemote(id: string): Promise<void> {
+  await api('/api/memberships/delete', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ id }) })
+}
+
 export interface InviteResult {
   ok: boolean
   cooldown?: boolean
@@ -225,5 +242,7 @@ export function publicToDB(pub: any): DB {
     })),
     reviews: (pub.reviews ?? []).map((r: any) => ({ ...r, avatar: r.avatar ?? null, createdAt: 0 })),
     clientInvites: [],
+    // Абонементы — внутренние данные салона, на витрину не уходят.
+    memberships: [],
   }
 }

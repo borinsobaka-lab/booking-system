@@ -199,10 +199,110 @@ function studioWallMs(nowMs, tz) {
   return Date.UTC(g('year'), g('month') - 1, g('day'), g('hour'), g('minute'))
 }
 
+/** Сегодняшняя дата 'YYYY-MM-DD' по часам салона. */
+export function studioToday(nowMs, tz) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz || 'Asia/Tbilisi',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(nowMs))
+}
+
 /** Достаточно ли запаса до начала сеанса, чтобы клиент мог записаться онлайн. */
 export function leadOk(minLeadMinutes, date, start, nowMs, tz) {
   if (!minLeadMinutes || minLeadMinutes <= 0) return true
   return wallMs(date, start) - studioWallMs(nowMs, tz) >= minLeadMinutes * 60_000
+}
+
+// --- Абонементы ---
+// Те же правила есть на клиенте (src/memberships.ts) — для локального режима.
+// Меняете правило здесь — меняйте и там.
+
+/** Ключ сравнения телефонов: последние 9 цифр (код страны пишут по-разному). */
+export function phoneKey(phone) {
+  const digits = String(phone || '').replace(/\D/g, '')
+  return digits.length >= 7 ? digits.slice(-9) : ''
+}
+
+const byTime = (a, b) =>
+  a.date !== b.date ? (a.date < b.date ? -1 : 1) : a.start < b.start ? -1 : a.start > b.start ? 1 : 0
+
+/**
+ * Пересчитать привязку записей к абонементам и остаток визитов.
+ *
+ * - абонементы тратятся по очереди оформления (сначала тот, что старше);
+ * - прошедшие визиты по абонементу уже потрачены — их не пересматриваем;
+ * - будущие записи клиента занимают оставшиеся визиты по порядку времени;
+ * - отменённая запись визит не тратит — баланс возвращается сам;
+ * - запись, с которой метку сняли вручную, автоматика не трогает;
+ * - записи раньше даты начала абонемента автоматически не помечаются.
+ *
+ * @param today 'YYYY-MM-DD' по часам салона.
+ */
+export function applyMemberships(data, today) {
+  const memberships = Array.isArray(data.memberships) ? data.memberships : []
+  const bookings = Array.isArray(data.bookings) ? data.bookings : []
+  const byId = new Map(memberships.map((m) => [m.id, m]))
+
+  // Абонемент удалили или сменился телефон — отвязываем. У прошедших визитов
+  // метку оставляем: история (и суммы к оплате) задним числом не меняется.
+  for (const b of bookings) {
+    if (!b.membershipId) continue
+    // Телефона не видно (массажисту чужие записи приходят обезличенными) —
+    // привязку не трогаем, иначе метка пропала бы у него на экране.
+    if (!b.clientPhone) continue
+    const m = byId.get(b.membershipId)
+    if (m && phoneKey(m.clientPhone) === phoneKey(b.clientPhone)) continue
+    b.membershipId = undefined
+    if (b.date >= today) b.membership = undefined
+  }
+
+  const taken = new Set()
+  for (const m of [...memberships].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0))) {
+    const key = phoneKey(m.clientPhone)
+    const total = Math.max(0, Math.floor(Number(m.total)) || 0)
+    const mine = key
+      ? bookings.filter((b) => b.status !== 'cancelled' && phoneKey(b.clientPhone) === key)
+      : []
+
+    const spent = mine.filter((b) => b.membershipId === m.id && b.date < today)
+    for (const b of spent) taken.add(b.id)
+
+    const ahead = mine
+      .filter(
+        (b) =>
+          b.date >= today &&
+          !taken.has(b.id) &&
+          !b.membershipOptOut &&
+          (b.membershipId === m.id || (!b.membershipId && b.date >= (m.startDate || ''))),
+      )
+      .sort(byTime)
+
+    const free = Math.max(0, total - spent.length)
+    ahead.forEach((b, i) => {
+      if (i < free) {
+        b.membershipId = m.id
+        b.membership = true
+        taken.add(b.id)
+      } else if (b.membershipId === m.id) {
+        b.membershipId = undefined
+        b.membership = undefined
+      }
+    })
+
+    m.used = spent.length + Math.min(ahead.length, free)
+  }
+  return data
+}
+
+/** Абонемент клиента с этим телефоном, где ещё есть визиты (самый старый). */
+export function membershipForPhone(memberships, phone) {
+  const key = phoneKey(phone)
+  if (!key) return undefined
+  return [...(memberships || [])]
+    .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0))
+    .find((m) => phoneKey(m.clientPhone) === key && Math.max(0, (m.total || 0) - (m.used || 0)) > 0)
 }
 
 // --- Публичные данные (без персональных данных и учёток) ---
@@ -295,6 +395,7 @@ export function emptyData() {
     bookings: [],
     reviews: [],
     clientInvites: [],
+    memberships: [],
   }
 }
 

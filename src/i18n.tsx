@@ -14,7 +14,7 @@ export const LANGS: { code: Lang; label: string }[] = [
   { code: 'ru', label: 'RU' },
 ]
 
-function localeFor(lang: Lang): string {
+export function localeFor(lang: Lang): string {
   return lang === 'en' ? 'en-US' : lang === 'ka' ? 'ka-GE' : 'ru-RU'
 }
 
@@ -106,6 +106,9 @@ const DICT: Dict = {
   'form.namePh': { en: 'Enter name', ka: 'შეიყვანეთ სახელი', ru: 'Введите имя' },
   'form.emailPh': { en: 'Enter email', ka: 'შეიყვანეთ ელფოსტა', ru: 'Введите email' },
   'form.emailErr': { en: 'Check the email address', ka: 'შეამოწმეთ ელფოსტა', ru: 'Проверьте адрес почты' },
+  'form.countryPick': { en: 'Country code', ka: 'ქვეყნის კოდი', ru: 'Код страны' },
+  'form.countrySearch': { en: 'Search country', ka: 'ქვეყნის ძებნა', ru: 'Поиск страны' },
+  'form.countryNone': { en: 'Nothing found', ka: 'ვერაფერი მოიძებნა', ru: 'Ничего не найдено' },
   'form.commentPh': {
     en: 'Any wishes (optional)',
     ka: 'სურვილები (არასავალდებულო)',
@@ -287,6 +290,11 @@ export function weekdayHeaders(lang: Lang): string[] {
   return WEEKDAYS_SHORT[lang]
 }
 
+/** Перевести строку вне провайдера (общие компоненты в русской админке). */
+export function translate(key: string, lang: Lang): string {
+  return DICT[key]?.[lang] ?? DICT[key]?.en ?? key
+}
+
 // --- Контекст ---
 interface I18nValue {
   lang: Lang
@@ -312,7 +320,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       }
       setLangState(l)
     }
-    const t = (key: string) => DICT[key]?.[lang] ?? DICT[key]?.en ?? key
+    const t = (key: string) => translate(key, lang)
     return { lang, setLang, t }
   }, [lang])
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>
