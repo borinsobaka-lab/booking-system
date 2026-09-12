@@ -2419,6 +2419,130 @@ textarea {
   font-size: 12px;
   margin-top: 4px;
 }
+/* ===== Телефон: код страны с круглым флагом + номер по маске ===== */
+.phone-field {
+  position: relative;
+}
+.phone-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+.phone-country {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: none;
+  padding: 0 12px;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  color: var(--text);
+  font-size: 16px;
+  transition: border-color 0.15s;
+}
+.phone-country:hover,
+.phone-field.open .phone-country {
+  border-color: var(--accent);
+}
+.phone-dial {
+  font-weight: 600;
+  white-space: nowrap;
+}
+.phone-caret {
+  display: inline-flex;
+  color: var(--muted);
+  transition: transform 0.15s;
+}
+.phone-field.open .phone-caret {
+  transform: rotate(180deg);
+}
+.phone-number {
+  flex: 1;
+  min-width: 0;
+  letter-spacing: 0.02em;
+}
+/* Круглый флаг: рисунок — SVG, обрезает его кружком обёртка. */
+.flag {
+  display: inline-block;
+  flex: none;
+  border-radius: 50%;
+  overflow: hidden;
+  line-height: 0;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1);
+}
+.flag svg {
+  display: block;
+}
+
+/* Выпадающий список стран */
+.phone-drop {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 12px 32px -14px rgba(0, 0, 0, 0.3);
+}
+.phone-drop.up {
+  top: auto;
+  bottom: calc(100% + 6px);
+}
+.phone-search {
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.phone-search input {
+  padding: 10px 12px;
+  font-size: 15px;
+  border-radius: 10px;
+}
+.phone-list {
+  max-height: 282px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.phone-opt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border: none;
+  background: none;
+  text-align: left;
+  font-size: 15px;
+  color: var(--text);
+}
+.phone-opt.active {
+  background: var(--accent-soft);
+}
+.phone-opt[aria-selected='true'] .phone-opt-name {
+  font-weight: 600;
+}
+.phone-opt-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.phone-opt-dial {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.phone-empty {
+  padding: 18px 12px;
+  text-align: center;
+  font-size: 14px;
+}
+
 .consent {
   display: flex;
   align-items: flex-start;

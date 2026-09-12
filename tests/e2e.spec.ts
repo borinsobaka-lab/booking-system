@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { COUNTRIES } from '../src/countries'
 
 // Данные живут в localStorage (локальный режим). Регистрации нет: в локальном
 // режиме заведён демо-суперадминистратор (demo / demo); сотрудников создаёт он
@@ -325,4 +326,101 @@ test('записи: видно, сколько клиент платит за у
   await page.reload()
   await page.getByRole('button', { name: 'Прошедшие' }).click()
   await expect(page.locator('.card-price').first()).toHaveText('не платит')
+})
+
+/** Клиент доходит до последнего шага записи: мастер → ближайшее время → услуга. */
+async function openBookingForm(page: Page) {
+  await page.evaluate(() => {
+    const L = (s: string) => ({ en: s, ka: s, ru: s })
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const key = (shift: number) => {
+      const d = new Date(Date.now() + shift * 86_400_000)
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+    }
+    const raw = JSON.parse(localStorage.getItem('booking-db-v1') || '{}')
+    raw.settings = { ...(raw.settings || {}), minLeadMinutes: 0, rooms: 1 }
+    raw.services = [{ id: 's1', name: L('Massage'), description: L(''), durationMin: 60, price: 100, image: null, createdAt: 1 }]
+    raw.specialists = [
+      { id: 'p1', firstName: L('Nino'), lastName: L('T.'), role: L('Therapist'), bio: L(''), avatar: null, serviceIds: ['s1'], createdAt: 1 },
+    ]
+    raw.schedules = [1, 2, 3].map((shift) => ({
+      specialistId: 'p1', date: key(shift), windows: [{ start: '09:00', end: '18:00' }], breaks: [],
+    }))
+    raw.bookings = []
+    localStorage.setItem('booking-db-v1', JSON.stringify(raw))
+  })
+  await page.goto('#/')
+  await page.reload()
+  await page.getByText('Specialist', { exact: true }).click()
+  await page.locator('.spec-slot').first().click()
+  await page.locator('.svc-full').first().click()
+  await page.getByRole('button', { name: 'Continue' }).click()
+  await expect(page.getByRole('heading', { name: 'Confirmation' })).toBeVisible()
+}
+
+test('запись: телефон по маске, код страны — из списка с флагами', async ({ page }) => {
+  await openBookingForm(page)
+
+  // По умолчанию Грузия: круглый флаг рядом с кодом +995
+  const country = page.locator('.phone-country')
+  await expect(country).toContainText('+995')
+  await expect(country.locator('.flag svg')).toBeVisible()
+
+  // Номер набирается по маске, буквы и лишние знаки в неё не попадают
+  const number = page.locator('.phone-number')
+  await expect(number).toHaveAttribute('placeholder', '000 00 00 00')
+  await number.fill('555abc12-34)56')
+  await expect(number).toHaveValue('555 12 34 56')
+
+  // Список стран: Грузия первая, дальше по алфавиту, у каждой страны свой флаг
+  await country.click()
+  const options = page.locator('.phone-opt')
+  await expect(options.first()).toContainText('Georgia')
+  await expect(options.nth(1)).toContainText('Afghanistan')
+  await expect(options).toHaveCount(COUNTRIES.length)
+  await expect(page.locator('.phone-opt .flag svg')).toHaveCount(COUNTRIES.length)
+
+  // Поиск и выбор другой страны: код и маска меняются, набранные цифры остаются
+  await page.getByPlaceholder('Search country').fill('Germ')
+  await expect(options).toHaveCount(1)
+  await options.first().click()
+  await expect(country).toContainText('+49')
+  await expect(number).toHaveValue('555 123 456')
+
+  // Возвращаемся к Грузии и дозаполняем форму
+  await country.click()
+  await page.getByPlaceholder('Search country').fill('Georgia')
+  await page.locator('.phone-opt').first().click()
+  await expect(country).toContainText('+995')
+  await expect(number).toHaveValue('555 12 34 56')
+
+  await page.getByPlaceholder('Enter name').fill('Ana')
+  await page.getByPlaceholder('Enter email').fill('ana@example.com')
+  await page.locator('.consent input').check()
+  await page.getByRole('button', { name: 'Book now' }).click()
+
+  // В запись уходит номер целиком, в международном виде
+  await expect(page.getByRole('heading', { name: "You're booked!" })).toBeVisible()
+  const saved = await page.evaluate(() => {
+    const db = JSON.parse(localStorage.getItem('booking-db-v1') || '{}')
+    return db.bookings[db.bookings.length - 1].clientPhone
+  })
+  expect(saved).toBe('+995 555 12 34 56')
+})
+
+test('запись: без полного номера бронировать нельзя', async ({ page }) => {
+  await openBookingForm(page)
+
+  await page.getByPlaceholder('Enter name').fill('Ana')
+  await page.getByPlaceholder('Enter email').fill('ana@example.com')
+  await page.locator('.consent input').check()
+  const book = page.getByRole('button', { name: 'Book now' })
+  await expect(book).toBeDisabled()
+
+  // маска заполнена наполовину — всё ещё нельзя
+  await page.locator('.phone-number').fill('555 12')
+  await expect(book).toBeDisabled()
+
+  await page.locator('.phone-number').fill('555123456')
+  await expect(book).toBeEnabled()
 })

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useDB, ratingOf } from '../db'
 import { loadProfile } from './profile'
 import { Avatar, Stars } from '../ui'
+import { PhoneInput } from '../PhoneInput'
+import { phoneValid } from '../phone'
 import { RichTextView } from '../RichText'
 import { useI18n, fmtDuration, fmtPrice, fmtFull, fmtMonthYear, weekdayHeaders, fmtReviewCount, fmtDayWeekdayShort, LangSelect } from '../i18n'
 import { pick, specialistName } from '../localized'
@@ -526,7 +528,7 @@ function ConfirmStep({
   const canBook =
     !!(sel.serviceId && sel.specialistId && sel.date && sel.start) &&
     form.clientName.trim().length > 0 &&
-    form.clientPhone.trim().length >= 5 &&
+    phoneValid(form.clientPhone) &&
     emailValid &&
     form.consent
 
@@ -561,10 +563,12 @@ function ConfirmStep({
         <span className="field-label">{t('label.name')} *</span>
         <input value={form.clientName} onChange={(e) => set('clientName', e.target.value)} placeholder={t('form.namePh')} />
       </label>
-      <label className="field">
-        <span className="field-label">{t('label.phone')} *</span>
-        <input type="tel" value={form.clientPhone} onChange={(e) => set('clientPhone', e.target.value)} placeholder="+995 555 12 34 56" />
-      </label>
+      <div className="field">
+        <label className="field-label" htmlFor="booking-phone">
+          {t('label.phone')} *
+        </label>
+        <PhoneInput id="booking-phone" value={form.clientPhone} onChange={(v) => set('clientPhone', v)} />
+      </div>
       <label className="field">
         <span className="field-label">{t('label.email')} *</span>
         <input type="email" value={form.clientEmail} onChange={(e) => set('clientEmail', e.target.value)} placeholder={t('form.emailPh')} />
