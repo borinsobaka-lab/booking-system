@@ -215,6 +215,88 @@ export function leadOk(minLeadMinutes, date, start, nowMs, tz) {
   return wallMs(date, start) - studioWallMs(nowMs, tz) >= minLeadMinutes * 60_000
 }
 
+// --- Подписи к коммитам в репозиторий данных ---
+// Каждое изменение данных — это коммит в приватный репозиторий, и его подпись
+// уходит в уведомления (в Telegram к репозиторию подключён бот GitHub).
+// Поэтому пишем подписи по-человечески: кто, к кому и когда.
+
+const MONTHS_RU = [
+  'января',
+  'февраля',
+  'марта',
+  'апреля',
+  'мая',
+  'июня',
+  'июля',
+  'августа',
+  'сентября',
+  'октября',
+  'ноября',
+  'декабря',
+]
+
+/** Текст из LocalizedString или обычной строки: русский, иначе любой. */
+function plain(v) {
+  if (!v) return ''
+  if (typeof v === 'string') return v
+  return v.ru || v.en || v.ka || ''
+}
+
+/** «8 посещений», «2 посещения», «1 посещение». */
+function plural(n, one, few, many) {
+  const rest = Math.abs(n) % 100
+  const last = rest % 10
+  if (rest > 10 && rest < 20) return many
+  if (last > 1 && last < 5) return few
+  if (last === 1) return one
+  return many
+}
+
+/** «14 сентября, 10:00». */
+function whenText(b) {
+  const [, m, d] = String(b.date || '').split('-').map(Number)
+  const month = MONTHS_RU[(m || 0) - 1]
+  const day = month ? `${d} ${month}` : b.date
+  return `${day}, ${b.start}`
+}
+
+/** Имя мастера по записи. */
+function masterName(data, specialistId) {
+  const sp = (data.specialists || []).find((s) => s.id === specialistId)
+  if (!sp) return 'мастер не указан'
+  return `${plain(sp.firstName)} ${plain(sp.lastName)}`.trim() || 'без имени'
+}
+
+/**
+ * Подпись к коммиту о записи — она же уведомление: «кто → к кому, когда».
+ * @param action 'new' | 'admin' | 'cancel' | 'cancel-public'
+ */
+export function bookingNote(action, data, b) {
+  if (!b) return `Запись: ${action}`
+  const client = String(b.clientName || '').trim() || 'без имени'
+  const master = masterName(data, b.specialistId)
+  const svc = plain((data.services || []).find((s) => s.id === b.serviceId)?.name)
+  const tail = svc ? ` · ${svc}` : ''
+  const who = `${client} → ${master}`
+  const when = whenText(b)
+  if (action === 'cancel') return `Отмена записи: ${who} · ${when}${tail}`
+  if (action === 'cancel-public') return `Отмена записи (клиент сам): ${who} · ${when}${tail}`
+  if (action === 'admin') return `Новая запись (из админки): ${who} · ${when}${tail}`
+  return `Новая запись: ${who} · ${when}${tail}`
+}
+
+/**
+ * Подпись к коммиту об абонементе.
+ * @param action 'new' | 'update' | 'delete'
+ */
+export function membershipNote(action, m) {
+  if (!m) return `Абонемент: ${action}`
+  const client = String(m.clientName || '').trim() || m.clientPhone || 'клиент'
+  if (action === 'delete') return `Абонемент удалён: ${client}`
+  const visits = `${m.total} ${plural(m.total, 'посещение', 'посещения', 'посещений')}`
+  return action === 'update' ? `Абонемент изменён: ${client} · ${visits}` : `Новый абонемент: ${client} · ${visits}`
+}
+
 // --- Абонементы ---
 // Те же правила есть на клиенте (src/memberships.ts) — для локального режима.
 // Меняете правило здесь — меняйте и там.
