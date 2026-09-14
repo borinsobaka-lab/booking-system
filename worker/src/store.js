@@ -85,7 +85,10 @@ export class GitHubStore {
       const next = mutator(data)
       if (next === null) return { data, sha, skipped: true }
       try {
-        const r = await this.put(next, sha, message)
+        // Подпись может зависеть от того, что получилось после изменения
+        // (имя клиента, мастер) — тогда её передают функцией.
+        const note = typeof message === 'function' ? message(next) : message
+        const r = await this.put(next, sha, note)
         return { data: next, sha: r.sha }
       } catch (e) {
         if (e && e.conflict) {

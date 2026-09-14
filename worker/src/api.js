@@ -17,6 +17,8 @@ import {
   verifyCancelToken,
   verifyReviewToken,
   applyMemberships,
+  bookingNote,
+  membershipNote,
   membershipForPhone,
   phoneKey,
   studioToday,
@@ -157,7 +159,7 @@ export async function handle(request, env, deps) {
         applyMemberships(data, studioToday(now(), env.STUDIO_TZ))
         savedData = data
         return data
-      }, 'booking: new')
+      }, (data) => bookingNote('new', data, created))
 
       if (!created) return json({ error: failReason || 'Не удалось создать запись' }, 409, env, request)
       // Письма: клиенту, сотрудникам, мастеру (если Resend настроен).
@@ -208,7 +210,7 @@ export async function handle(request, env, deps) {
         applyMemberships(data, studioToday(now(), env.STUDIO_TZ))
         savedData = data
         return data
-      }, 'booking: admin new')
+      }, (data) => bookingNote('admin', data, created))
 
       if (!created) return json({ error: failReason || 'Не удалось создать запись' }, 409, env, request)
       await notifyBookingCreated(env, savedData, created)
@@ -235,7 +237,7 @@ export async function handle(request, env, deps) {
         removed = bk
         savedData = data
         return data
-      }, 'booking: cancel')
+      }, (data) => bookingNote('cancel', data, removed))
 
       if (!removed) return json({ error: 'Запись не найдена' }, 404, env, request)
       await notifyBookingCancelled(env, savedData, removed)
@@ -330,7 +332,7 @@ export async function handle(request, env, deps) {
         applyMemberships(data, studioToday(now(), env.STUDIO_TZ))
         saved = rec
         return data
-      }, b.id ? 'membership: update' : 'membership: new')
+      }, () => membershipNote(b.id ? 'update' : 'new', saved))
 
       if (!saved) return json({ error: 'Абонемент не найден' }, 404, env, request)
       return json({ ok: true, membership: saved }, 200, env, request)
@@ -345,16 +347,18 @@ export async function handle(request, env, deps) {
       if (!b || !b.id) return json({ error: 'bad json' }, 400, env, request)
 
       let removed = false
+      let gone = null
       await store.update((data) => {
         const list = Array.isArray(data.memberships) ? data.memberships : []
         const next = list.filter((m) => m.id !== b.id)
         if (next.length === list.length) return null
+        gone = list.find((m) => m.id === b.id)
         data.memberships = next
         // Будущие записи снова станут обычными, прошедшие визиты — как были.
         applyMemberships(data, studioToday(now(), env.STUDIO_TZ))
         removed = true
         return data
-      }, 'membership: delete')
+      }, () => membershipNote('delete', gone))
 
       if (!removed) return json({ error: 'Абонемент не найден' }, 404, env, request)
       return json({ ok: true }, 200, env, request)
@@ -445,7 +449,7 @@ export async function handle(request, env, deps) {
         removed = bk
         savedData = data
         return data
-      }, 'booking: cancel by client')
+      }, (data) => bookingNote('cancel-public', data, removed))
       if (!removed) return json({ ok: true, already: true }, 200, env, request)
       await notifyBookingCancelled(env, savedData, removed)
       return json({ ok: true }, 200, env, request)
