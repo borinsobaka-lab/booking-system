@@ -278,6 +278,25 @@ export function saveSpecialist(s: Specialist): void {
   })
 }
 
+/** Задать порядок специалистов (перетаскивание карточек в админке). Порядок
+ *  массива — это и есть порядок показа мастеров клиентам на витрине. */
+export function reorderSpecialists(ids: string[]): void {
+  mutate((db) => {
+    const byId = new Map(db.specialists.map((s) => [s.id, s]))
+    const next: Specialist[] = []
+    for (const id of ids) {
+      const s = byId.get(id)
+      if (s) {
+        next.push(s)
+        byId.delete(id)
+      }
+    }
+    // Хвост: специалисты, которых не было в переданном порядке — сохраняем.
+    for (const s of db.specialists) if (byId.has(s.id)) next.push(s)
+    db.specialists = next
+  })
+}
+
 export function deleteSpecialist(id: string): void {
   mutate((db) => {
     db.specialists = db.specialists.filter((s) => s.id !== id)

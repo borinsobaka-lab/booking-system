@@ -614,6 +614,9 @@ test('деактивированный мастер: внизу списка, п
   await expect(page.locator('.spec-card').last()).toContainText('Ana')
   await expect(page.locator('.spec-card.inactive')).toContainText('Не работает')
   await expect(page.locator('.spec-card.inactive .avatar-dim')).toHaveCount(1)
+  // Полупрозрачный, но не чёрно-белый.
+  const filter = await page.locator('.spec-card.inactive .avatar-dim').evaluate((el) => getComputedStyle(el).filter)
+  expect(filter).toBe('none')
 
   // На витрине: активный первым, деактивированный — последним, полупрозрачный,
   // без выбора и ближайших слотов, но с кнопкой «i».
@@ -640,4 +643,41 @@ test('деактивированный мастер: внизу списка, п
   await page.getByRole('button', { name: /Специалисты/ }).click()
   await page.locator('.spec-card', { hasText: 'Ana' }).getByRole('button', { name: 'Активировать' }).click()
   await expect(page.locator('.spec-card.inactive')).toHaveCount(0)
+})
+
+test('порядок специалистов: перетаскивание в админке — такой же порядок на витрине', async ({ page }) => {
+  await page.evaluate(() => {
+    const L = (s: string) => ({ en: s, ka: s, ru: s })
+    const raw = JSON.parse(localStorage.getItem('booking-db-v1') || '{}')
+    raw.services = [{ id: 's1', name: L('Massage'), description: L(''), durationMin: 60, price: 100, image: null, createdAt: 1 }]
+    raw.specialists = ['Ana', 'Nino', 'Mari'].map((name, i) => ({
+      id: `p${i + 1}`, firstName: L(name), lastName: L('T.'), role: L('Therapist'), bio: L(''), avatar: null, serviceIds: ['s1'], createdAt: 1,
+    }))
+    raw.schedules = []
+    raw.bookings = []
+    localStorage.setItem('booking-db-v1', JSON.stringify(raw))
+  })
+  await page.reload()
+  await loginAsOwner(page)
+  await page.getByRole('button', { name: /Специалисты/ }).click()
+  const names = page.locator('.spec-card .spec-card-name')
+  await expect(names).toHaveText(['Ana T.', 'Nino T.', 'Mari T.'])
+
+  // Тащим Mari за ручку ⠿ на место Ana.
+  const handle = page.locator('.spec-card', { hasText: 'Mari' }).locator('.drag-handle')
+  const target = page.locator('.spec-card', { hasText: 'Ana' })
+  const hb = (await handle.boundingBox())!
+  const tb = (await target.boundingBox())!
+  await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(tb.x + tb.width / 2, tb.y + tb.height / 2, { steps: 10 })
+  await page.mouse.up()
+  await expect(names).toHaveText(['Mari T.', 'Ana T.', 'Nino T.'])
+
+  // После перезагрузки порядок сохранён, и на витрине он такой же.
+  await page.reload()
+  await expect(names).toHaveText(['Mari T.', 'Ana T.', 'Nino T.'])
+  await page.goto('#/')
+  await page.getByText('Specialist', { exact: true }).click()
+  await expect(page.locator('.spec-row-name')).toHaveText(['Mari T.', 'Ana T.', 'Nino T.'])
 })

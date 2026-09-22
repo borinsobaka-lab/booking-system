@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useDB, saveSpecialist, deleteSpecialist, uid } from '../db'
+import { useMemo, useState } from 'react'
+import { useDB, saveSpecialist, deleteSpecialist, reorderSpecialists, uid } from '../db'
 import { Avatar, Field, ImagePicker, Modal, LangTabs, setLoc } from '../ui'
 import { RichTextEditor } from '../RichText'
 import { pick, specialistName, emptyLoc } from '../localized'
@@ -8,6 +8,7 @@ import { Icon } from '../icons'
 import { useAuth } from '../auth'
 import { todayKey } from '../time'
 import { useDeny } from './guard'
+import { useDragOrder } from './dragOrder'
 import type { Lang, Specialist } from '../types'
 
 const A: Lang = 'ru' // отображение в админке
@@ -18,6 +19,19 @@ export function SpecialistsPage() {
   const [deny, denyModal] = useDeny()
   const guard = (fn: () => void) => () => (canManage ? fn() : deny())
   const [editing, setEditing] = useState<Specialist | null>(null)
+
+  // Деактивированные — последними: видно, кто сейчас работает. Порядок внутри
+  // групп задаётся перетаскиванием и совпадает с порядком на витрине.
+  const sorted = useMemo(
+    () => [...db.specialists.filter((sp) => !sp.inactive), ...db.specialists.filter((sp) => sp.inactive)],
+    [db.specialists],
+  )
+  const { order, dragId, startDrag } = useDragOrder(
+    sorted,
+    '.spec-card',
+    reorderSpecialists,
+    (a, b) => !a.inactive === !b.inactive, // активный не уезжает к деактивированным
+  )
 
   const blank = (): Specialist => ({
     id: uid(),
@@ -54,59 +68,77 @@ export function SpecialistsPage() {
         </button>
       </header>
 
-      {db.specialists.length === 0 ? (
+      {order.length === 0 ? (
         <div className="empty">
           <div className="empty-emoji"><Icon name="users" size={44} /></div>
           <p>Добавьте специалистов — их можно ставить в расписание и записывать к ним клиентов.</p>
         </div>
       ) : (
-        <div className="cards-grid">
-          {/* Деактивированные — последними: видно, кто сейчас работает. */}
-          {[...db.specialists.filter((sp) => !sp.inactive), ...db.specialists.filter((sp) => sp.inactive)].map((sp) => {
-            const services = db.services.filter((s) => sp.serviceIds.includes(s.id))
-            return (
-              <div className={`spec-card${sp.inactive ? ' inactive' : ''}`} key={sp.id}>
-                <Avatar src={sp.avatar} name={specialistName(sp, A)} size={64} dim={sp.inactive} />
-                <div className="spec-card-name">{specialistName(sp, A)}</div>
-                <div className="spec-card-role">{pick(sp.role, A)}</div>
-                {sp.inactive && <div className="spec-card-badge">Не работает — запись закрыта</div>}
-                <div className="spec-card-services">
-                  {services.length ? (
-                    services.map((s) => (
-                      <span className="chip" key={s.id}>
-                        {pick(s.name, A)}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="muted small">Услуги не выбраны</span>
+        <>
+          {canManage && order.length > 1 && (
+            <p className="muted small reorder-hint">Перетаскивайте карточки за уголок ⠿, чтобы задать порядок мастеров — в таком же порядке они видны клиентам.</p>
+          )}
+          <div className="cards-grid">
+            {order.map((sp) => {
+              const services = db.services.filter((s) => sp.serviceIds.includes(s.id))
+              return (
+                <div
+                  className={`spec-card${sp.inactive ? ' inactive' : ''}${dragId === sp.id ? ' dragging' : ''}`}
+                  key={sp.id}
+                  data-id={sp.id}
+                >
+                  {canManage && (
+                    <button
+                      className="drag-handle"
+                      title="Перетащить"
+                      aria-label="Перетащить для смены порядка"
+                      onPointerDown={(e) => startDrag(e, sp.id)}
+                    >
+                      ⠿
+                    </button>
                   )}
-                </div>
-                <button className="btn btn-sm spec-card-toggle" onClick={guard(() => toggleActive(sp))}>
-                  {sp.inactive ? 'Активировать' : 'Деактивировать'}
-                </button>
-                <div className="card-actions">
-                  <button className="linkbtn" onClick={guard(() => setEditing(sp))}>
-                    Изменить
+                  <Avatar src={sp.avatar} name={specialistName(sp, A)} size={64} dim={sp.inactive} />
+                  <div className="spec-card-name">{specialistName(sp, A)}</div>
+                  <div className="spec-card-role">{pick(sp.role, A)}</div>
+                  {sp.inactive && <div className="spec-card-badge">Не работает — запись закрыта</div>}
+                  <div className="spec-card-services">
+                    {services.length ? (
+                      services.map((s) => (
+                        <span className="chip" key={s.id}>
+                          {pick(s.name, A)}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="muted small">Услуги не выбраны</span>
+                    )}
+                  </div>
+                  <button className="btn btn-sm spec-card-toggle" onClick={guard(() => toggleActive(sp))}>
+                    {sp.inactive ? 'Активировать' : 'Деактивировать'}
                   </button>
-                  <button
-                    className="linkbtn danger"
-                    onClick={guard(() => {
-                      // Вместе со специалистом уходят его расписание, записи и
-                      // отзывы — предупреждаем, сколько записей будет потеряно.
-                      const bookings = db.bookings.filter((b) => b.specialistId === sp.id).length
-                      const tail = bookings
-                        ? `\n\nВместе с ним удалятся его расписание, отзывы и ${bookings} записей (включая историю выплат). Это не отменить.`
-                        : '\n\nВместе с ним удалятся его расписание и отзывы.'
-                      if (confirm(`Удалить специалиста «${specialistName(sp, A)}»?${tail}`)) deleteSpecialist(sp.id)
-                    })}
-                  >
-                    Удалить
-                  </button>
+                  <div className="card-actions">
+                    <button className="linkbtn" onClick={guard(() => setEditing(sp))}>
+                      Изменить
+                    </button>
+                    <button
+                      className="linkbtn danger"
+                      onClick={guard(() => {
+                        // Вместе со специалистом уходят его расписание, записи и
+                        // отзывы — предупреждаем, сколько записей будет потеряно.
+                        const bookings = db.bookings.filter((b) => b.specialistId === sp.id).length
+                        const tail = bookings
+                          ? `\n\nВместе с ним удалятся его расписание, отзывы и ${bookings} записей (включая историю выплат). Это не отменить.`
+                          : '\n\nВместе с ним удалятся его расписание и отзывы.'
+                        if (confirm(`Удалить специалиста «${specialistName(sp, A)}»?${tail}`)) deleteSpecialist(sp.id)
+                      })}
+                    >
+                      Удалить
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )
-          })}
-        </div>
+              )
+            })}
+          </div>
+        </>
       )}
 
       {editing && <SpecialistEditor specialist={editing} onClose={() => setEditing(null)} />}
