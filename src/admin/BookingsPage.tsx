@@ -769,7 +769,7 @@ function ManualBooking({ today, onClose }: { today: string; onClose: () => void 
             }}
           >
             <option value="">— выберите —</option>
-            {db.specialists.map((s) => (
+            {db.specialists.filter((s) => !s.inactive).map((s) => (
               <option key={s.id} value={s.id}>
                 {specialistName(s, A)}
               </option>

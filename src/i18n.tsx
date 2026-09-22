@@ -88,6 +88,11 @@ const DICT: Dict = {
     ru: 'На этот день нет свободного времени.',
   },
   'specialist.busy': { en: 'busy at this time', ka: 'დაკავებულია ამ დროს', ru: 'занят в это время' },
+  'specialist.inactive': {
+    en: 'not taking bookings',
+    ka: 'ჩაწერა არ მიმდინარეობს',
+    ru: 'не принимает записи',
+  },
   'cal.available': { en: 'time available', ka: 'თავისუფალი დროა', ru: 'есть свободное время' },
 
   'label.service': { en: 'Service', ka: 'სერვისი', ru: 'Услуга' },

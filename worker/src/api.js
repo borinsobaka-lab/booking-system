@@ -128,6 +128,10 @@ export async function handle(request, env, deps) {
           failReason = 'Услуга не найдена'
           return null
         }
+        if ((data.specialists || []).some((s) => s.id === specialistId && s.inactive)) {
+          failReason = 'Мастер больше не принимает записи'
+          return null
+        }
         if (!isSlotFree(data, specialistId, serviceId, date, start)) {
           failReason = 'Это время уже занято'
           return null
@@ -186,6 +190,10 @@ export async function handle(request, env, deps) {
         const svc = data.services.find((s) => s.id === serviceId)
         if (!svc) {
           failReason = 'Услуга не найдена'
+          return null
+        }
+        if ((data.specialists || []).some((s) => s.id === specialistId && s.inactive)) {
+          failReason = 'Мастер больше не принимает записи'
           return null
         }
         if (!isSlotFree(data, specialistId, serviceId, date, start)) {

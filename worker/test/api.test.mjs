@@ -255,6 +255,33 @@ test('admin create: нужна сессия; создаёт запись', async
   assert.equal(store._peek().bookings.length, 1)
 })
 
+test('деактивированный мастер: записаться нельзя ни клиенту, ни из админки; витрина видит флаг', async () => {
+  const store = await seededStore()
+  store._peek().specialists[0].inactive = true
+  const pub = await call(store, 'GET', '/api/public')
+  assert.equal(pub.body.specialists[0].inactive, true)
+  const client = await call(store, 'POST', '/api/bookings', {
+    body: { specialistId: 'p1', serviceId: 's1', date: '2026-07-13', start: '10:00', clientName: 'Мария', clientPhone: '+995 555', consent: true },
+  })
+  assert.equal(client.status, 409)
+  assert.match(client.body.error, /не принимает/)
+  const login = await call(store, 'POST', '/api/auth/login', { body: { username: 'owner', password: 'pw' } })
+  const admin = await call(store, 'POST', '/api/bookings/create', {
+    token: login.body.token,
+    body: { specialistId: 'p1', serviceId: 's1', date: '2026-07-13', start: '11:00' },
+  })
+  assert.equal(admin.status, 409)
+  assert.equal(store._peek().bookings.length, 0)
+  // Снова активен — запись проходит.
+  store._peek().specialists[0].inactive = undefined
+  const again = await call(store, 'POST', '/api/bookings', {
+    body: { specialistId: 'p1', serviceId: 's1', date: '2026-07-13', start: '10:00', clientName: 'Мария', clientPhone: '+995 555', consent: true },
+  })
+  assert.equal(again.status, 200)
+  const pub2 = await call(store, 'GET', '/api/public')
+  assert.equal('inactive' in pub2.body.specialists[0], false)
+})
+
 test('PUT /api/data не затирает записи (брони меняются только эндпоинтами)', async () => {
   const store = await seededStore()
   // создаём бронь через клиентский эндпоинт

@@ -123,6 +123,6 @@ export function specialistFreeAt(specialistId: string, serviceId: string, date: 
   const svc = services().find((s) => s.id === serviceId)
   if (!svc) return false
   const sp = specialists().find((s) => s.id === specialistId)
-  if (!sp || !sp.serviceIds.includes(serviceId)) return false
+  if (!sp || sp.inactive || !sp.serviceIds.includes(serviceId)) return false
   return isSlotFree(specialistId, date, start, svc.durationMin)
 }

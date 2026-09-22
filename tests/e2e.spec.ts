@@ -583,3 +583,61 @@ test('визиты клиента считаются и по телефону, �
   await page.getByRole('button', { name: /Клиенты/ }).click()
   await expect(page.locator('.client-row')).toHaveCount(2)
 })
+
+test('деактивированный мастер: внизу списка, приглушён, записаться нельзя', async ({ page }) => {
+  await page.evaluate(() => {
+    const L = (s: string) => ({ en: s, ka: s, ru: s })
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const key = (shift: number) => {
+      const d = new Date(Date.now() + shift * 86_400_000)
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+    }
+    const raw = JSON.parse(localStorage.getItem('booking-db-v1') || '{}')
+    raw.settings = { ...(raw.settings || {}), minLeadMinutes: 0, rooms: 2 }
+    raw.services = [{ id: 's1', name: L('Massage'), description: L(''), durationMin: 60, price: 100, image: null, createdAt: 1 }]
+    raw.specialists = ['Ana', 'Nino'].map((name, i) => ({
+      id: `p${i + 1}`, firstName: L(name), lastName: L('T.'), role: L('Therapist'), bio: L(''), avatar: null, serviceIds: ['s1'], createdAt: 1,
+    }))
+    raw.schedules = ['p1', 'p2'].flatMap((specialistId) =>
+      [1, 2, 3].map((shift) => ({ specialistId, date: key(shift), windows: [{ start: '09:00', end: '18:00' }], breaks: [] })),
+    )
+    raw.bookings = []
+    localStorage.setItem('booking-db-v1', JSON.stringify(raw))
+  })
+  await page.reload()
+
+  // Владелец деактивирует первого мастера — в админке он уходит вниз.
+  await loginAsOwner(page)
+  await page.getByRole('button', { name: /Специалисты/ }).click()
+  page.once('dialog', (d) => d.accept())
+  await page.locator('.spec-card', { hasText: 'Ana' }).getByRole('button', { name: 'Деактивировать' }).click()
+  await expect(page.locator('.spec-card').last()).toContainText('Ana')
+  await expect(page.locator('.spec-card.inactive')).toContainText('Не работает')
+  await expect(page.locator('.spec-card.inactive .avatar-dim')).toHaveCount(1)
+
+  // На витрине: активный первым, деактивированный — последним, полупрозрачный,
+  // без выбора и ближайших слотов, но с кнопкой «i».
+  await page.goto('#/')
+  await page.getByText('Specialist', { exact: true }).click()
+  const rows = page.locator('.spec-row')
+  await expect(rows).toHaveCount(2)
+  await expect(rows.first()).toContainText('Nino')
+  const off = rows.last()
+  await expect(off).toContainText('Ana')
+  await expect(off).toHaveClass(/inactive/)
+  await expect(off).toContainText('not taking bookings')
+  await expect(off.locator('.avatar-dim')).toHaveCount(1)
+  await expect(off.locator('.spec-check')).toHaveCount(0)
+  await expect(off.locator('.spec-slot')).toHaveCount(0)
+  await expect(off.locator('.spec-row-main')).toBeDisabled()
+  await off.locator('.spec-info-btn').click()
+  await expect(page.locator('.spec-bio-name')).toHaveText('Ana T.')
+  await expect(page.getByRole('button', { name: 'Choose this specialist' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Close bio' }).click()
+
+  // Вернули в работу — снова можно выбрать.
+  await page.goto('#/admin-panel')
+  await page.getByRole('button', { name: /Специалисты/ }).click()
+  await page.locator('.spec-card', { hasText: 'Ana' }).getByRole('button', { name: 'Активировать' }).click()
+  await expect(page.locator('.spec-card.inactive')).toHaveCount(0)
+})
