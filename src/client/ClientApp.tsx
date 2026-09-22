@@ -37,7 +37,7 @@ export function ClientApp({ path }: { path: string }) {
     }
   }, [])
 
-  const configured = db.services.length > 0 && db.specialists.length > 0
+  const configured = db.services.length > 0 && db.specialists.some((sp) => !sp.inactive)
 
   const book = async (
     v: { serviceId: string; specialistId: string; date: string; start: string } & BookingForm,

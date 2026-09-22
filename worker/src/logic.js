@@ -156,7 +156,7 @@ export function isSlotFree(data, specialistId, serviceId, date, start) {
   const svc = data.services.find((s) => s.id === serviceId)
   if (!svc) return false
   const sp = data.specialists.find((s) => s.id === specialistId)
-  if (!sp || !sp.serviceIds.includes(serviceId)) return false
+  if (!sp || sp.inactive || !sp.serviceIds.includes(serviceId)) return false
   const sched = data.schedules.find((s) => s.specialistId === specialistId && s.date === date)
   if (!sched || !sched.windows.length) return false
   const end = addMinutes(start, svc.durationMin)
@@ -402,6 +402,7 @@ export function toPublic(data) {
       bio: s.bio,
       avatar: s.avatar,
       serviceIds: s.serviceIds,
+      inactive: s.inactive || undefined,
     })),
     schedules: data.schedules || [],
     // только занятость по времени — без имени, телефона, услуги и т.п.

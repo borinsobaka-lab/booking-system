@@ -189,9 +189,13 @@ function SpecialistStep({
   const { lang, t } = useI18n()
   const [bioId, setBioId] = useState<string | null>(null)
   const [pickedId, setPickedId] = useState<string | null>(sel.specialistId ?? null)
-  const list: Specialist[] = sel.serviceId ? specialistsDoing(sel.serviceId) : db.specialists
+  // Деактивированные мастера остаются в списке (биография и отзывы видны), но
+  // идут последними и выбрать их нельзя.
+  const all: Specialist[] = sel.serviceId ? specialistsDoing(sel.serviceId) : db.specialists
+  const list = [...all.filter((sp) => !sp.inactive), ...all.filter((sp) => sp.inactive)]
   const knowsTime = !!(sel.date && sel.start && sel.serviceId)
-  const isFree = (sp: Specialist) => (knowsTime ? specialistFreeAt(sp.id, sel.serviceId!, sel.date!, sel.start!) : true)
+  const isFree = (sp: Specialist) =>
+    !sp.inactive && (knowsTime ? specialistFreeAt(sp.id, sel.serviceId!, sel.date!, sel.start!) : true)
 
   if (list.length === 0) return <Empty text={t('empty.noSpecialists')} />
 
@@ -201,16 +205,19 @@ function SpecialistStep({
     const rating = ratingOf(db.reviews, bio.id)
     return (
       <div className="spec-bio">
-        <Avatar src={bio.avatar} name={specialistName(bio, lang)} size={96} />
+        <Avatar src={bio.avatar} name={specialistName(bio, lang)} size={96} dim={bio.inactive} />
         <div className="spec-bio-name">{specialistName(bio, lang)}</div>
         <div className="spec-bio-role">{pick(bio.role, lang)}</div>
+        {bio.inactive && <div className="spec-row-badge">{t('specialist.inactive')}</div>}
         <RatingLine avg={rating.avg} count={rating.count} center />
         {pick(bio.bio, lang) && <RichTextView className="spec-bio-text" html={pick(bio.bio, lang)} />}
         <ReviewsList specialistId={bio.id} />
         <div className="wiz-footer">
-          <button className="btn btn-primary btn-block btn-lg" disabled={!isFree(bio)} onClick={() => onPick(bio.id)}>
-            {t('specialist.select')}
-          </button>
+          {!bio.inactive && (
+            <button className="btn btn-primary btn-block btn-lg" disabled={!isFree(bio)} onClick={() => onPick(bio.id)}>
+              {t('specialist.select')}
+            </button>
+          )}
           <button className="btn btn-block" onClick={() => setBioId(null)}>
             {t('specialist.closeBio')}
           </button>
@@ -233,7 +240,10 @@ function SpecialistStep({
           const isPicked = pickedId === sp.id
           const toggle = () => free && setPickedId(isPicked ? null : sp.id)
           return (
-            <div key={sp.id} className={`spec-row${free ? '' : ' unavailable'}${isPicked ? ' selected' : ''}`}>
+            <div
+              key={sp.id}
+              className={`spec-row${free ? '' : ' unavailable'}${sp.inactive ? ' inactive' : ''}${isPicked ? ' selected' : ''}`}
+            >
               <div className="spec-row-top">
                 <button className="spec-row-main" disabled={!free} onClick={toggle}>
                   <Avatar src={sp.avatar} name={specialistName(sp, lang)} size={56} dim={!free} />
@@ -241,23 +251,30 @@ function SpecialistStep({
                     <div className="spec-row-name">{specialistName(sp, lang)}</div>
                     <div className="spec-row-role">{pick(sp.role, lang)}</div>
                     <RatingLine avg={rating.avg} count={rating.count} />
-                    {!free && <div className="spec-row-badge">{t('specialist.busy')}</div>}
+                    {sp.inactive ? (
+                      <div className="spec-row-badge">{t('specialist.inactive')}</div>
+                    ) : (
+                      !free && <div className="spec-row-badge">{t('specialist.busy')}</div>
+                    )}
                   </div>
                 </button>
                 <div className="spec-row-actions">
                   <button className="spec-info-btn" onClick={() => setBioId(sp.id)} aria-label="info" title="info">
                     i
                   </button>
-                  {/* Чекбокс выбора мастера: клик по нему или по карточке отмечает/снимает. */}
-                  <button
-                    className={`spec-check${isPicked ? ' on' : ''}`}
-                    disabled={!free}
-                    aria-pressed={isPicked}
-                    aria-label="select"
-                    onClick={toggle}
-                  >
-                    {isPicked ? '✓' : ''}
-                  </button>
+                  {/* Чекбокс выбора мастера: клик по нему или по карточке отмечает/снимает.
+                      У деактивированного мастера его нет — остаётся только «i». */}
+                  {!sp.inactive && (
+                    <button
+                      className={`spec-check${isPicked ? ' on' : ''}`}
+                      disabled={!free}
+                      aria-pressed={isPicked}
+                      aria-label="select"
+                      onClick={toggle}
+                    >
+                      {isPicked ? '✓' : ''}
+                    </button>
+                  )}
                 </div>
               </div>
               {nearest && (

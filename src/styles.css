@@ -808,9 +808,28 @@ textarea {
   margin-bottom: 12px;
   min-height: 24px;
 }
+.spec-card.inactive {
+  background: #fafafa;
+}
+.spec-card.inactive .spec-card-name,
+.spec-card.inactive .spec-card-role,
+.spec-card.inactive .spec-card-services {
+  opacity: 0.55;
+}
+.spec-card-badge {
+  font-size: 11px;
+  color: var(--muted);
+  background: #f0f1f4;
+  border-radius: 20px;
+  padding: 2px 8px;
+  margin-bottom: 8px;
+}
 .spec-card .card-actions {
   width: 100%;
   margin-top: auto;
+}
+.spec-card-toggle {
+  margin-bottom: 12px;
 }
 
 /* ===== Список пользователей ===== */
@@ -1769,6 +1788,12 @@ textarea {
 }
 .spec-row.unavailable {
   background: #fafafa;
+}
+/* Деактивированный мастер: приглушённая карточка, аватар уже полупрозрачный. */
+.spec-row.inactive .spec-row-name,
+.spec-row.inactive .spec-row-role,
+.spec-row.inactive .rating-line {
+  opacity: 0.55;
 }
 .spec-row.selected {
   border-color: var(--accent);

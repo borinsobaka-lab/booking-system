@@ -58,6 +58,8 @@ export function isWorkingDay(specialistId: string, date: string): boolean {
  */
 export function freeSlots(specialistId: string, date: string, durationMin: number): Slot[] {
   const state = getState()
+  // Деактивированный мастер не принимает записи — свободного времени у него нет.
+  if (state.specialists.find((s) => s.id === specialistId)?.inactive) return []
   const sched = state.schedules.find((s) => s.specialistId === specialistId && s.date === date)
   if (!sched || sched.windows.length === 0) return []
 

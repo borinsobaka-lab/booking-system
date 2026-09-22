@@ -6,6 +6,7 @@ import { pick, specialistName, emptyLoc } from '../localized'
 import { DEFAULT_PAYOUT } from '../payout'
 import { Icon } from '../icons'
 import { useAuth } from '../auth'
+import { todayKey } from '../time'
 import { useDeny } from './guard'
 import type { Lang, Specialist } from '../types'
 
@@ -29,6 +30,21 @@ export function SpecialistsPage() {
     createdAt: Date.now(),
   })
 
+  // Деактивация не удаляет ничего: расписание, записи, отзывы и выплаты
+  // остаются, просто к мастеру больше нельзя записаться.
+  const toggleActive = (sp: Specialist) => {
+    if (sp.inactive) return saveSpecialist({ ...sp, inactive: undefined })
+    const today = todayKey()
+    const upcoming = db.bookings.filter(
+      (b) => b.specialistId === sp.id && b.status !== 'cancelled' && b.date >= today,
+    ).length
+    const tail = upcoming
+      ? `\n\nУ него остаются ${upcoming} предстоящих записей — они не отменяются автоматически, при необходимости отмените их в разделе «Записи».`
+      : ''
+    if (confirm(`Деактивировать специалиста «${specialistName(sp, A)}»? Записаться к нему будет нельзя.${tail}`))
+      saveSpecialist({ ...sp, inactive: true })
+  }
+
   return (
     <div className="page">
       <header className="page-head">
@@ -45,13 +61,15 @@ export function SpecialistsPage() {
         </div>
       ) : (
         <div className="cards-grid">
-          {db.specialists.map((sp) => {
+          {/* Деактивированные — последними: видно, кто сейчас работает. */}
+          {[...db.specialists.filter((sp) => !sp.inactive), ...db.specialists.filter((sp) => sp.inactive)].map((sp) => {
             const services = db.services.filter((s) => sp.serviceIds.includes(s.id))
             return (
-              <div className="spec-card" key={sp.id}>
-                <Avatar src={sp.avatar} name={specialistName(sp, A)} size={64} />
+              <div className={`spec-card${sp.inactive ? ' inactive' : ''}`} key={sp.id}>
+                <Avatar src={sp.avatar} name={specialistName(sp, A)} size={64} dim={sp.inactive} />
                 <div className="spec-card-name">{specialistName(sp, A)}</div>
                 <div className="spec-card-role">{pick(sp.role, A)}</div>
+                {sp.inactive && <div className="spec-card-badge">Не работает — запись закрыта</div>}
                 <div className="spec-card-services">
                   {services.length ? (
                     services.map((s) => (
@@ -63,6 +81,9 @@ export function SpecialistsPage() {
                     <span className="muted small">Услуги не выбраны</span>
                   )}
                 </div>
+                <button className="btn btn-sm spec-card-toggle" onClick={guard(() => toggleActive(sp))}>
+                  {sp.inactive ? 'Активировать' : 'Деактивировать'}
+                </button>
                 <div className="card-actions">
                   <button className="linkbtn" onClick={guard(() => setEditing(sp))}>
                     Изменить
