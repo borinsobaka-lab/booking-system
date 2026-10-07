@@ -27,7 +27,8 @@ crons = ["*/10 * * * *"]
 # Секреты (задать через wrangler secret put, не сюда):
 #   DATA_TOKEN     — GitHub-токен с доступом contents:read/write к DATA_REPO
 #   SESSION_SECRET — длинная случайная строка для подписи сессий
-#   RESEND_API_KEY — ключ Resend (re_...). Без него письма не отправляются.
+#   UNISENDER_GO_API_KEY — ключ Unisender Go. Если задан, письма идут через него.
+#   RESEND_API_KEY — ключ Resend (re_...), запасной путь, пока нет ключа Unisender Go.
 #   TEST_EMAIL     — (тест) все письма уходят на этот адрес вместо реальных
 #   EMAIL_REPLY_TO — (необязательно) адрес для ответов клиентов
 #   REMINDER_LEAD_MINUTES — за сколько минут напоминать (по умолчанию 60)

@@ -204,3 +204,63 @@ test('двое мастеров: письмо об отмене тоже не у
     m.restore()
   }
 })
+
+// --- Unisender Go (если задан UNISENDER_GO_API_KEY) ---
+
+function mockUnisender(reply = { status: 'success', job_id: 'j1', emails: [] }) {
+  const calls = []
+  const orig = globalThis.fetch
+  globalThis.fetch = async (url, opts) => {
+    calls.push({ url, headers: opts.headers, body: JSON.parse(opts.body) })
+    return { ok: reply.status === 'success', status: reply.status === 'success' ? 200 : 400, text: async () => JSON.stringify(reply) }
+  }
+  return { calls, restore: () => (globalThis.fetch = orig) }
+}
+
+test('sendEmail: с UNISENDER_GO_API_KEY — шлём через Unisender Go, а не Resend', async () => {
+  const m = mockUnisender()
+  try {
+    const env = { UNISENDER_GO_API_KEY: 'u_key', RESEND_API_KEY: 're_x', EMAIL_FROM: 'NEBA <noreply@neba.space>', EMAIL_REPLY_TO: 'hi@neba.space' }
+    const r = await sendEmail(env, { to: ['a@b.com', 'c@d.com'], subject: 'S', html: '<p>Hello<br>world</p>' })
+    assert.ok(r)
+    assert.equal(m.calls.length, 1)
+    const c = m.calls[0]
+    assert.equal(c.url, 'https://go2.unisender.ru/ru/transactional/api/v1/email/send.json')
+    assert.equal(c.headers['X-API-KEY'], 'u_key')
+    const msg = c.body.message
+    assert.deepEqual(msg.recipients, [{ email: 'a@b.com' }, { email: 'c@d.com' }])
+    assert.equal(msg.from_email, 'noreply@neba.space')
+    assert.equal(msg.from_name, 'NEBA')
+    assert.equal(msg.subject, 'S')
+    assert.equal(msg.body.html, '<p>Hello<br>world</p>')
+    assert.equal(msg.body.plaintext, 'Hello\nworld')
+    assert.equal(msg.reply_to, 'hi@neba.space')
+    assert.equal(msg.track_links, 0)
+    assert.equal(msg.track_read, 0)
+  } finally {
+    m.restore()
+  }
+})
+
+test('sendEmail: Unisender Go вернул ошибку — null', async () => {
+  const m = mockUnisender({ status: 'error', message: 'bad key', code: 102 })
+  const origErr = console.error
+  console.error = () => {}
+  try {
+    const r = await sendEmail({ UNISENDER_GO_API_KEY: 'u_key' }, { to: 'a@b.com', subject: 'S', html: '<p>h</p>' })
+    assert.equal(r, null)
+  } finally {
+    console.error = origErr
+    m.restore()
+  }
+})
+
+test('notifyBookingCreated: работает и с одним ключом Unisender Go', async () => {
+  const m = mockUnisender()
+  try {
+    await notifyBookingCreated({ UNISENDER_GO_API_KEY: 'u_key' }, fullData(), booking)
+    assert.equal(m.calls.length, 3)
+  } finally {
+    m.restore()
+  }
+})

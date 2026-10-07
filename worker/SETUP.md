@@ -152,10 +152,21 @@ node mock-server.mjs   # локальный мок API в памяти (http://l
 Регистрации/создания владельца через API нет — суперадминистратор заводится
 скриптом `seed-owner.mjs` (шаг 2).
 
-## 6. Email-уведомления (Resend)
+## 6. Email-уведомления (Unisender Go; Resend — запасной)
 
-Письма отправляются через [Resend](https://resend.com). Пока не задан секрет
-`RESEND_API_KEY`, система работает как обычно, просто без писем.
+Письма отправляются через [Unisender Go](https://go2.unisender.ru), если задан
+секрет `UNISENDER_GO_API_KEY` (домен neba.space подтверждён там). Пока его нет —
+по-старому через [Resend](https://resend.com) по `RESEND_API_KEY` (код Resend
+будет удалён отдельным шагом). Пока не задан ни один ключ, система работает как
+обычно, просто без писем.
+
+```bash
+wrangler secret put UNISENDER_GO_API_KEY  # ключ API Unisender Go
+```
+
+Или в дашборде Cloudflare: *Workers & Pages → booking-api → Settings →
+Variables and Secrets → Add* (тип Secret). Ошибки отправки — в логах Worker'а
+со строкой `Unisender Go error` (там message и code из ответа API).
 
 **Какие письма шлём:**
 

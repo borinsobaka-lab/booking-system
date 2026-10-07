@@ -24,7 +24,7 @@ import {
   studioToday,
   uid,
 } from './logic.js'
-import { notifyBookingCreated, notifyBookingCancelled, sendPasswordReset, sendClientInvite } from './email.js'
+import { notifyBookingCreated, notifyBookingCancelled, sendPasswordReset, sendClientInvite, mailEnabled } from './email.js'
 
 function corsHeaders(env, request) {
   const origin = env.CORS_ORIGIN || request.headers.get('Origin') || '*'
@@ -166,7 +166,7 @@ export async function handle(request, env, deps) {
       }, (data) => bookingNote('new', data, created))
 
       if (!created) return json({ error: failReason || 'Не удалось создать запись' }, 409, env, request)
-      // Письма: клиенту, сотрудникам, мастеру (если Resend настроен).
+      // Письма: клиенту, сотрудникам, мастеру (если почта настроена).
       await notifyBookingCreated(env, savedData, created)
       // Клиенту возвращаем только его запись без чужих данных.
       return json({ ok: true, booking: created }, 200, env, request)
@@ -582,8 +582,8 @@ export async function handle(request, env, deps) {
         console.log('reset: у пользователя не указана почта. login=', username)
         return json(generic, 200, env, request)
       }
-      if (!env.RESEND_API_KEY) {
-        console.log('reset: не задан секрет RESEND_API_KEY — письма не отправляются')
+      if (!mailEnabled(env)) {
+        console.log('reset: не задан ни UNISENDER_GO_API_KEY, ни RESEND_API_KEY — письма не отправляются')
         return json(generic, 200, env, request)
       }
 
@@ -596,7 +596,7 @@ export async function handle(request, env, deps) {
       // чтобы не заблокировать доступ несуществующим паролем.
       const sent = await sendPasswordReset(env, data, u, newPassword)
       if (!sent) {
-        console.log('reset: Resend не принял письмо (см. лог "Resend error" выше). to=', u.email)
+        console.log('reset: почтовый провайдер не принял письмо (см. лог "Unisender Go error" / "Resend error" выше). to=', u.email)
         return json(generic, 200, env, request)
       }
       console.log('reset: новый пароль отправлен. login=', username, 'to=', env.TEST_EMAIL || u.email)

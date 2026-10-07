@@ -1,9 +1,12 @@
-// Email-уведомления через Resend (https://resend.com). Все письма — на английском.
-// Всё поведение — за переменными окружения; если ключа нет, функции ничего не
-// делают (система работает как раньше). Никаких секретов в коде.
+// Email-уведомления. Все письма — на английском.
+// Провайдер: Unisender Go (https://go2.unisender.ru), если задан
+// UNISENDER_GO_API_KEY; иначе — по-старому Resend (https://resend.com).
+// Всё поведение — за переменными окружения; если ни одного ключа нет, функции
+// ничего не делают (система работает как раньше). Никаких секретов в коде.
 //
 // Переменные окружения (секреты/vars Worker'а):
-//   RESEND_API_KEY   — ключ API Resend (re_...). Без него письма не шлются.
+//   UNISENDER_GO_API_KEY — ключ API Unisender Go. Если задан — шлём через него.
+//   RESEND_API_KEY   — ключ API Resend (re_...), запасной путь до удаления Resend.
 //   EMAIL_FROM       — отправитель, напр. "NEBA <noreply@ваш-домен>". По умолчанию
 //                      onboarding@resend.dev (только для теста — письма уходят
 //                      лишь на адрес аккаунта Resend).
@@ -16,6 +19,7 @@
 import { cancelToken, reviewToken } from './logic.js'
 
 const RESEND_ENDPOINT = 'https://api.resend.com/emails'
+const UNISENDER_GO_ENDPOINT = 'https://go2.unisender.ru/ru/transactional/api/v1/email/send.json'
 const LANG = 'en'
 
 // --- Контент ---
@@ -42,19 +46,82 @@ function digits(s) {
   return String(s || '').replace(/[^\d]/g, '')
 }
 
-// --- Отправка через Resend ---
+// --- Отправка: Unisender Go, если есть его ключ, иначе Resend ---
 
-export async function sendEmail(env, { to, subject, html, replyTo }) {
-  if (!env || !env.RESEND_API_KEY) return null
-  let recipients = Array.isArray(to) ? to.filter(Boolean) : to ? [to] : []
-  if (recipients.length === 0) return null
-  if (env.TEST_EMAIL) recipients = [env.TEST_EMAIL]
+/** Настроена ли отправка писем хоть одним провайдером. */
+export function mailEnabled(env) {
+  return !!(env && (env.UNISENDER_GO_API_KEY || env.RESEND_API_KEY))
+}
 
-  const from = env.EMAIL_FROM || 'NEBA <onboarding@resend.dev>'
+// "NEBA <noreply@neba.space>" -> { email, name }
+export function parseFrom(from) {
+  const m = String(from || '').match(/^\s*"?([^"<]*?)"?\s*<([^>]+)>\s*$/)
+  if (m) return { email: m[2].trim(), name: m[1].trim() }
+  return { email: String(from || '').trim(), name: '' }
+}
+
+// Текстовая версия письма для Unisender Go: из HTML без тегов.
+export function htmlToText(html) {
+  return String(html || '')
+    .replace(/<(style|script)[\s\S]*?<\/\1>/gi, '')
+    .replace(/<a\s[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, (_, href, text) => {
+      const t = text.replace(/<[^>]+>/g, '').trim()
+      return href && !href.startsWith('tel:') && t !== href ? `${t} (${href})` : t
+    })
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|h\d|tr|div|table)>/gi, '\n')
+    .replace(/<\/td>/gi, ' ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, '&')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/ *\n */g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+async function sendViaUnisender(env, { from, recipients, subject, html, replyTo }) {
+  const sender = parseFrom(from)
+  const message = {
+    recipients: recipients.map((email) => ({ email })),
+    from_email: sender.email,
+    from_name: sender.name || undefined,
+    subject,
+    body: { html, plaintext: htmlToText(html) },
+    track_links: 0,
+    track_read: 0,
+  }
+  if (replyTo) message.reply_to = replyTo
+  try {
+    const res = await fetch(UNISENDER_GO_ENDPOINT, {
+      method: 'POST',
+      headers: { 'X-API-KEY': env.UNISENDER_GO_API_KEY, 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ message }),
+    })
+    const text = await res.text()
+    let data = null
+    try {
+      data = JSON.parse(text)
+    } catch {
+      /* не JSON — залогируем как есть */
+    }
+    if (!res.ok || !data || data.status !== 'success') {
+      console.error('Unisender Go error', res.status, data ? `${data.message || ''} (code ${data.code ?? '—'})` : text)
+      return null
+    }
+    return data
+  } catch (e) {
+    console.error('Unisender Go fetch failed', e && e.message)
+    return null
+  }
+}
+
+async function sendViaResend(env, { from, recipients, subject, html, replyTo }) {
   const body = { from, to: recipients, subject, html }
-  const rt = replyTo || env.EMAIL_REPLY_TO
-  if (rt) body.reply_to = rt
-
+  if (replyTo) body.reply_to = replyTo
   try {
     const res = await fetch(RESEND_ENDPOINT, {
       method: 'POST',
@@ -70,6 +137,17 @@ export async function sendEmail(env, { to, subject, html, replyTo }) {
     console.error('Resend fetch failed', e && e.message)
     return null
   }
+}
+
+export async function sendEmail(env, { to, subject, html, replyTo }) {
+  if (!mailEnabled(env)) return null
+  let recipients = Array.isArray(to) ? to.filter(Boolean) : to ? [to] : []
+  if (recipients.length === 0) return null
+  if (env.TEST_EMAIL) recipients = [env.TEST_EMAIL]
+
+  const from = env.EMAIL_FROM || 'NEBA <onboarding@resend.dev>'
+  const msg = { from, recipients, subject, html, replyTo: replyTo || env.EMAIL_REPLY_TO }
+  return env.UNISENDER_GO_API_KEY ? sendViaUnisender(env, msg) : sendViaResend(env, msg)
 }
 
 // --- Получатели ---
@@ -183,7 +261,7 @@ function layout(ctx, { title, intro, cancelUrl: cUrl, rateUrl: rUrl, showContact
 
 /** Ручное приглашение клиента вернуться (EN или RU). Возвращает true при отправке. */
 export async function sendClientInvite(env, data, { to, name, lang }) {
-  if (!env || !env.RESEND_API_KEY || !to) return false
+  if (!mailEnabled(env) || !to) return false
   const brand = loc(data.brand && data.brand.name) || 'NEBA'
   const bookUrl = (env.CLIENT_BASE_URL || '').replace(/\/+$/, '') || null
   const ru = lang === 'ru'
@@ -221,7 +299,7 @@ export async function sendClientInvite(env, data, { to, name, lang }) {
 /** Восстановление пароля: письмо сотруднику с новым паролем (на русском).
  *  Возвращает true, если письмо действительно отправлено. */
 export async function sendPasswordReset(env, data, user, newPassword) {
-  if (!env || !env.RESEND_API_KEY || !user || !user.email) return false
+  if (!mailEnabled(env) || !user || !user.email) return false
   const brand = loc(data.brand && data.brand.name) || 'NEBA'
   const name = user.name ? esc(user.name) : ''
   const html = `<!doctype html><html><body style="margin:0;background:#f4f4f5;padding:24px;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#1c1c1e">
@@ -242,7 +320,7 @@ export async function sendPasswordReset(env, data, user, newPassword) {
 
 /** При создании записи: письма клиенту, сотрудникам и мастеру. */
 export async function notifyBookingCreated(env, data, booking) {
-  if (!env || !env.RESEND_API_KEY) return
+  if (!mailEnabled(env)) return
   const ctx = bookingContext(data, booking)
   const cUrl = await cancelUrl(env, booking)
   const jobs = []
@@ -280,7 +358,7 @@ export async function notifyBookingCreated(env, data, booking) {
 
 /** При отмене записи: письма клиенту и мастеру. */
 export async function notifyBookingCancelled(env, data, booking) {
-  if (!env || !env.RESEND_API_KEY) return
+  if (!mailEnabled(env)) return
   const ctx = bookingContext(data, booking)
   const jobs = []
   // клиент
@@ -314,7 +392,7 @@ export async function notifyBookingCancelled(env, data, booking) {
 
 /** Просьба оценить специалиста (вызывается из cron через 10 минут после сеанса). */
 export async function sendReviewRequest(env, data, booking) {
-  if (!env || !env.RESEND_API_KEY || !booking.clientEmail) return
+  if (!mailEnabled(env) || !booking.clientEmail) return
   const ctx = bookingContext(data, booking)
   const rUrl = await reviewUrl(env, booking)
   if (!rUrl) return // без ссылки письмо бессмысленно
@@ -329,7 +407,7 @@ export async function sendReviewRequest(env, data, booking) {
 
 /** Напоминание клиенту (вызывается из cron). */
 export async function sendReminder(env, data, booking) {
-  if (!env || !env.RESEND_API_KEY || !booking.clientEmail) return
+  if (!mailEnabled(env) || !booking.clientEmail) return
   const ctx = bookingContext(data, booking)
   const cUrl = await cancelUrl(env, booking)
   const html = layout(ctx, {
@@ -368,7 +446,7 @@ export function dueReminders(data, nowMs, leadMinutes, tz) {
 }
 
 export async function runReminders(env, store, nowMs) {
-  if (!env || !env.RESEND_API_KEY) return { sent: 0 }
+  if (!mailEnabled(env)) return { sent: 0 }
   const lead = Number(env.REMINDER_LEAD_MINUTES) || 60
   const tz = env.STUDIO_TZ
   let due = []
@@ -404,7 +482,7 @@ export function dueReviewRequests(data, nowMs, delayMinutes, tz) {
 }
 
 export async function runReviewRequests(env, store, nowMs) {
-  if (!env || !env.RESEND_API_KEY) return { sent: 0 }
+  if (!mailEnabled(env)) return { sent: 0 }
   const delay = Number(env.REVIEW_DELAY_MINUTES) || 10
   const tz = env.STUDIO_TZ
   let due = []

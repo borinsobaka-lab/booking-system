@@ -17,7 +17,7 @@ export default {
 
   // Cron (см. [triggers] в wrangler.toml): напоминания «за час» до сеанса и
   // просьбы оценить специалиста через ~10 минут после сеанса.
-  // Ничего не делает, пока не задан секрет RESEND_API_KEY.
+  // Ничего не делает, пока не задан ни UNISENDER_GO_API_KEY, ни RESEND_API_KEY.
   async scheduled(event, env, ctx) {
     const store = new GitHubStore(env)
     const now = Date.now()
