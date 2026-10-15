@@ -23,13 +23,31 @@ import {
   phoneKey,
   studioToday,
   uid,
+  cancelToken,
+  cleanSource,
+  freeStarts,
+  addDays,
+  SLOT_STEP,
 } from './logic.js'
 import { notifyBookingCreated, notifyBookingCancelled, sendPasswordReset, sendClientInvite, mailEnabled } from './email.js'
 
+/** CORS_ORIGIN — один адрес или несколько через запятую (витрина записи,
+ *  приложение Lady Stretch). Отвечаем адресом, с которого пришёл запрос, если он
+ *  в списке; '*' — любой (локальный мок, тесты). */
+function allowedOrigin(env, request) {
+  const origin = request.headers.get('Origin') || ''
+  const list = String(env.CORS_ORIGIN || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+  if (list.length === 0) return origin || '*'
+  if (list.includes('*')) return '*'
+  return list.includes(origin) ? origin : list[0]
+}
+
 function corsHeaders(env, request) {
-  const origin = env.CORS_ORIGIN || request.headers.get('Origin') || '*'
   return {
-    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Origin': allowedOrigin(env, request),
     'Access-Control-Allow-Methods': 'GET,POST,PUT,OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Max-Age': '86400',
@@ -109,6 +127,28 @@ export async function handle(request, env, deps) {
       return json(toPublic(data), 200, env, request)
     }
 
+    // --- Свободное время для записи, посчитанное сервером (приложение Lady Stretch) ---
+    // ?from=YYYY-MM-DD (не раньше сегодня) &days=1..92 (по умолчанию 31).
+    if (path === '/api/slots' && method === 'GET') {
+      const today = studioToday(now(), env.STUDIO_TZ)
+      const fromQ = url.searchParams.get('from') || ''
+      const from = RE_DATE.test(fromQ) && fromQ > today ? fromQ : today
+      const days = Math.min(92, Math.max(1, Math.floor(Number(url.searchParams.get('days'))) || 31))
+      const { data } = await store.get()
+      return json(
+        {
+          today,
+          from,
+          to: addDays(from, days - 1),
+          step: SLOT_STEP,
+          slots: freeStarts(data, from, days, now(), env.STUDIO_TZ),
+        },
+        200,
+        env,
+        request,
+      )
+    }
+
     // --- Клиент создаёт бронь ---
     if (path === '/api/bookings' && method === 'POST') {
       const b = await request.json().catch(() => null)
@@ -155,6 +195,8 @@ export async function handle(request, env, deps) {
           clientEmail: b.clientEmail ? String(b.clientEmail).slice(0, 200) : undefined,
           comment: b.comment ? String(b.comment).slice(0, 1000) : undefined,
           lang: b.lang === 'en' || b.lang === 'ka' || b.lang === 'ru' ? b.lang : undefined,
+          // Откуда запись: нет — витрина; 'lady-stretch-app' — приложение Lady Stretch.
+          source: cleanSource(b.source),
           consent: true,
           createdAt: now(),
         }
@@ -168,8 +210,10 @@ export async function handle(request, env, deps) {
       if (!created) return json({ error: failReason || 'Не удалось создать запись' }, 409, env, request)
       // Письма: клиенту, сотрудникам, мастеру (если почта настроена).
       await notifyBookingCreated(env, savedData, created)
-      // Клиенту возвращаем только его запись без чужих данных.
-      return json({ ok: true, booking: created }, 200, env, request)
+      // Клиенту возвращаем только его запись без чужих данных — и токен отмены
+      // (тот же, что в ссылке из письма): приложение может отменить запись само.
+      const token = env.SESSION_SECRET ? await cancelToken(env.SESSION_SECRET, created.id) : undefined
+      return json({ ok: true, booking: created, cancelToken: token }, 200, env, request)
     }
 
     // --- Запись из админки вручную (владелец и администратор) ---
@@ -418,7 +462,8 @@ export async function handle(request, env, deps) {
         return json({ error: 'Недействительная ссылка' }, 403, env, request)
       const { data } = await store.get()
       const b = (data.bookings || []).find((x) => x.id === id)
-      if (!b) return json({ ok: true, booking: null }, 200, env, request) // уже отменена
+      // Отмена — мягкая (status=cancelled), поэтому проверяем и статус.
+      if (!b || b.status === 'cancelled') return json({ ok: true, booking: null }, 200, env, request) // уже отменена
       const svc = (data.services || []).find((s) => s.id === b.serviceId)
       const sp = (data.specialists || []).find((s) => s.id === b.specialistId)
       const nm = (v) => (typeof v === 'string' ? v : v ? v.en || v.ru || v.ka || '' : '')

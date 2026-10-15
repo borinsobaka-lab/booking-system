@@ -8,8 +8,9 @@ compatibility_date = "2024-11-01"
 DATA_REPO = "borinsobaka-lab/booking-system-data"
 DATA_BRANCH = "main"
 DATA_PATH = "data.json"
-# Origin витрины (для CORS). Домен записи.
-CORS_ORIGIN = "https://booking.neba.space"
+# Откуда разрешены запросы из браузера (CORS), через запятую: витрина записи
+# и клиентское приложение Lady Stretch (запись на массаж внутри приложения).
+CORS_ORIGIN = "https://booking.neba.space,https://app.lady-stretch.one"
 # Часовой пояс салона — для правила «за сколько до сеанса» и напоминаний.
 STUDIO_TZ = "Asia/Tbilisi"
 # Адрес витрины — для ссылки «отменить запись» в письмах.

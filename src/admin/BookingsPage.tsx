@@ -628,6 +628,12 @@ function BookingDetail({
               <dd>{booking.comment}</dd>
             </>
           )}
+          {booking.source && (
+            <>
+              <dt>Откуда</dt>
+              <dd>{booking.source === 'lady-stretch-app' ? 'Приложение Lady Stretch' : booking.source}</dd>
+            </>
+          )}
           <dt>К оплате клиентом</dt>
           <dd>
             {membership ? (

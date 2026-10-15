@@ -150,6 +150,23 @@ export function roomCount(data) {
   return Number.isFinite(n) && n >= 1 ? Math.floor(n) : 1
 }
 
+/** Помещается ли интервал cand в день мастера: внутри рабочего окна, мимо
+ *  перерывов и его записей, и общий кабинет свободен (параллельно идёт не больше
+ *  сеансов, чем кабинетов). dayBookings — активные записи дня всех мастеров. */
+function fitsDay(sched, dayBookings, specialistId, cand, rooms) {
+  if (!sched || !sched.windows.length) return false
+  const inWindow = sched.windows.some((w) => toMin(w.start) <= toMin(cand.start) && toMin(cand.end) <= toMin(w.end))
+  if (!inWindow) return false
+  const busy = [
+    ...(sched.breaks || []),
+    ...dayBookings.filter((b) => b.specialistId === specialistId).map((b) => ({ start: b.start, end: b.end })),
+  ]
+  if (busy.some((r) => overlaps(cand, r))) return false
+  // Общий кабинет: считаем все параллельные сеансы студии, не только свои.
+  const parallel = dayBookings.filter((b) => overlaps(cand, { start: b.start, end: b.end })).length
+  return parallel < rooms
+}
+
 /** Свободен ли слот у специалиста под услугу в дату/время (та же логика, что на клиенте).
  *  Учитывается и общий кабинет: параллельно идёт не больше сеансов, чем кабинетов. */
 export function isSlotFree(data, specialistId, serviceId, date, start) {
@@ -158,20 +175,75 @@ export function isSlotFree(data, specialistId, serviceId, date, start) {
   const sp = data.specialists.find((s) => s.id === specialistId)
   if (!sp || sp.inactive || !sp.serviceIds.includes(serviceId)) return false
   const sched = data.schedules.find((s) => s.specialistId === specialistId && s.date === date)
-  if (!sched || !sched.windows.length) return false
-  const end = addMinutes(start, svc.durationMin)
-  const cand = { start, end }
-  const inWindow = sched.windows.some((w) => toMin(w.start) <= toMin(start) && toMin(end) <= toMin(w.end))
-  if (!inWindow) return false
   const dayBookings = (data.bookings || []).filter((b) => b.date === date && b.status !== 'cancelled')
-  const busy = [
-    ...(sched.breaks || []),
-    ...dayBookings.filter((b) => b.specialistId === specialistId).map((b) => ({ start: b.start, end: b.end })),
-  ]
-  if (busy.some((r) => overlaps(cand, r))) return false
-  // Общий кабинет: считаем все параллельные сеансы студии, не только свои.
-  const parallel = dayBookings.filter((b) => overlaps(cand, { start: b.start, end: b.end })).length
-  return parallel < roomCount(data)
+  return fitsDay(sched, dayBookings, specialistId, { start, end: addMinutes(start, svc.durationMin) }, roomCount(data))
+}
+
+/** Шаг сетки времени начала (минуты) — как на витрине (src/availability.ts). */
+export const SLOT_STEP = 30
+
+/** 'YYYY-MM-DD' + n дней. */
+export function addDays(date, n) {
+  const [y, m, d] = date.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10)
+}
+
+/**
+ * Свободные времена начала на дни [from, from + days):
+ * { [specialistId]: { [serviceId]: { [date]: ['10:00', …] } } }.
+ *
+ * Для внешних клиентов, которые не считают доступность сами (приложение
+ * Lady Stretch): сетка — как на витрине (от начала рабочего окна шагом
+ * SLOT_STEP), проверка — та же, что при записи (fitsDay), плюс правило запаса до
+ * сеанса (minLeadMinutes) и только будущее время. Деактивированных мастеров и
+ * дней без свободного времени в ответе нет.
+ */
+export function freeStarts(data, from, days, nowMs, tz) {
+  const dates = Array.from({ length: days }, (_, i) => addDays(from, i))
+  const wanted = new Set(dates)
+  const rooms = roomCount(data)
+  const minLeadMs = ((data.settings && data.settings.minLeadMinutes) || 0) * 60_000
+  const nowWall = studioWallMs(nowMs, tz)
+
+  // Индексы на нужные дни: расписание мастера и активные записи студии по дате.
+  const schedules = new Map()
+  for (const s of data.schedules || []) if (wanted.has(s.date)) schedules.set(`${s.specialistId}|${s.date}`, s)
+  const byDate = new Map()
+  for (const b of data.bookings || []) {
+    if (b.status === 'cancelled' || !wanted.has(b.date)) continue
+    if (!byDate.has(b.date)) byDate.set(b.date, [])
+    byDate.get(b.date).push(b)
+  }
+  const services = new Map((data.services || []).map((s) => [s.id, s]))
+
+  const out = {}
+  for (const sp of data.specialists || []) {
+    if (sp.inactive) continue
+    for (const serviceId of sp.serviceIds || []) {
+      const svc = services.get(serviceId)
+      if (!svc) continue
+      for (const date of dates) {
+        const sched = schedules.get(`${sp.id}|${date}`)
+        if (!sched || !sched.windows || !sched.windows.length) continue
+        const dayBookings = byDate.get(date) || []
+        const starts = new Set()
+        for (const w of sched.windows) {
+          for (let t = toMin(w.start); t + svc.durationMin <= toMin(w.end); t += SLOT_STEP) {
+            const start = addMinutes('00:00', t)
+            const ahead = wallMs(date, start) - nowWall
+            if (ahead <= 0 || ahead < minLeadMs) continue
+            const cand = { start, end: addMinutes(start, svc.durationMin) }
+            if (fitsDay(sched, dayBookings, sp.id, cand, rooms)) starts.add(start)
+          }
+        }
+        if (starts.size === 0) continue
+        if (!out[sp.id]) out[sp.id] = {}
+        if (!out[sp.id][serviceId]) out[sp.id][serviceId] = {}
+        out[sp.id][serviceId][date] = [...starts].sort()
+      }
+    }
+  }
+  return out
 }
 
 // --- Минимальный запас до записи (правило онлайн-записи клиентов) ---
@@ -267,6 +339,17 @@ function masterName(data, specialistId) {
   return `${plain(sp.firstName)} ${plain(sp.lastName)}`.trim() || 'без имени'
 }
 
+/** Откуда пришла запись (поле source): подпись для уведомлений и админки.
+ *  Нет поля — витрина записи. */
+export const SOURCE_LABELS = {
+  'lady-stretch-app': 'приложение Lady Stretch',
+}
+
+/** source из запроса клиента: короткий латинский код, иначе не храним. */
+export function cleanSource(v) {
+  return typeof v === 'string' && /^[a-z0-9-]{1,40}$/.test(v) ? v : undefined
+}
+
 /**
  * Подпись к коммиту о записи — она же уведомление: «кто → к кому, когда».
  * @param action 'new' | 'admin' | 'cancel' | 'cancel-public'
@@ -282,6 +365,7 @@ export function bookingNote(action, data, b) {
   if (action === 'cancel') return `Отмена записи: ${who} · ${when}${tail}`
   if (action === 'cancel-public') return `Отмена записи (клиент сам): ${who} · ${when}${tail}`
   if (action === 'admin') return `Новая запись (из админки): ${who} · ${when}${tail}`
+  if (b.source) return `Новая запись (${SOURCE_LABELS[b.source] || b.source}): ${who} · ${when}${tail}`
   return `Новая запись: ${who} · ${when}${tail}`
 }
 

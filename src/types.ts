@@ -139,6 +139,9 @@ export interface Booking {
   consent?: boolean
   /** Язык клиента при записи — для писем на его языке. */
   lang?: Lang
+  /** Откуда запись пришла: нет — витрина; 'lady-stretch-app' — приложение
+   *  Lady Stretch (подписи — SOURCE_LABELS в worker/src/logic.js). */
+  source?: string
   /** Когда отправлено напоминание «за час» (защита от повторной отправки). */
   reminderSentAt?: number
   /** Когда отправлена просьба оценить специалиста (защита от повторной отправки). */
