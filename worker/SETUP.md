@@ -127,6 +127,10 @@ wrangler deploy
 cd worker
 node --test                 # тесты логики API (без сети)
 node mock-server.mjs   # локальный мок API в памяти (http://localhost:8787)
+
+# Мок на живом каталоге и расписании (без записей и писем в боевой системе):
+curl -s https://booking-system.borin-sobaka.workers.dev/api/public > seed.json
+node mock-server.mjs seed.json
 ```
 
 ## Эндпоинты API

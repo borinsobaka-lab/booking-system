@@ -1,11 +1,26 @@
 // Локальный мок Worker'а для проверки интеграции SPA ↔ API без GitHub:
 // те же обработчики (api.js), но хранилище — в памяти.
+//
+// node mock-server.mjs [seed.json] — начальные данные из файла: полный data.json
+// или снимок витрины (`curl …/api/public > seed.json`, занятость станет
+// обезличенными записями). Так приложение Lady Stretch разрабатывают на живом
+// каталоге и расписании, не создавая записей и писем в боевой системе.
+import fs from 'node:fs'
 import http from 'node:http'
 import { handle } from './src/api.js'
 import { emptyData } from './src/logic.js'
 
+function seedData(file) {
+  if (!file) return emptyData()
+  const raw = JSON.parse(fs.readFileSync(file, 'utf8'))
+  if (!raw.busy) return { ...emptyData(), ...raw }
+  const { busy, ...pub } = raw
+  const bookings = busy.map((b, i) => ({ id: `busy${i}`, serviceId: '', status: 'confirmed', createdAt: 0, ...b }))
+  return { ...emptyData(), ...pub, bookings }
+}
+
 function makeStore() {
-  let data = emptyData()
+  let data = seedData(process.argv[2])
   let sha = 'sha0'
   return {
     async get() {
@@ -27,7 +42,7 @@ function makeStore() {
 }
 
 const store = makeStore()
-const env = { SESSION_SECRET: 'mock-secret', CORS_ORIGIN: '*' }
+const env = { SESSION_SECRET: 'mock-secret', CORS_ORIGIN: '*', STUDIO_TZ: 'Asia/Tbilisi' }
 const deps = { store, now: () => Date.now(), rnd: () => Math.random() }
 
 const server = http.createServer(async (req, res) => {
